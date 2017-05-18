@@ -1,5 +1,6 @@
 # dEEbugger
-The dEEbugger is an ESP8266 based keychain swiss army knife for electronics.
+[The dEEbugger is an ESP8266 based keychain swiss army knife for electronics](https://gfycat.com/OrneryPlushAbalone)
+
 
 ![Alt text](/Pictures/ON_KEYS.jpg?raw=true "Keychain")
 
