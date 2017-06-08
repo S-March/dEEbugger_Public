@@ -10,3 +10,7 @@
 
 void scopeInit(void);
 void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT);
+void ADCInit(void);
+void setADCChannel(int CHANNEL);
+int ADCRead(void);
+void ADCHandler(void);

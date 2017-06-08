@@ -16,11 +16,12 @@ String getUartScopeData(void);
 void clearUartScopeData(void);
 
 //ADC SCOPE DATA
-void addADCScopeData(String ADCSCOPEDATA);
-String getADCScopeData(void);
-void setLastADCScopeData(String LASTADCSCOPEDATA);
-String getLastADCScopeData(void);
-void clearADCScopeData(void);
+void addADCScopeData1(String ADCSCOPEDATA);
+void addADCScopeData2(String ADCSCOPEDATA);
+String getADCScopeData1(void);
+String getADCScopeData2(void);
+void clearADCScopeData1(void);
+void clearADCScopeData2(void);
 
 //SCOPE PARAMETERS
 void setChannelMode1(String MODE);

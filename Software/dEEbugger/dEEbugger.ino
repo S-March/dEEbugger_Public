@@ -119,13 +119,10 @@ void loop()
   ArduinoOTA.handle();
   webSocket.loop();
   server.handleClient();
-  if((getChanneMode1()=="ADC")||(getChanneMode2()=="ADC"))
+  if((currentTime - oldTimeADC)>=5)
   {
-    if((currentTime - oldTimeADC)>=5)
-    {
-      addADCScopeData(String(analogRead(0)));
-      oldTimeADC = currentTime;
-    }
+    ADCHandler();
+    oldTimeADC = currentTime;
   }
   if(webSocketData!="")
   {

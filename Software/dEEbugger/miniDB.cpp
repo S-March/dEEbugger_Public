@@ -4,8 +4,8 @@ int msTimer;
 bool dataLogFlag;
 bool uartScopeFlag;
 String uartScopeData;
-String adcScopeData;
-String lastAdcScopeData;
+String adcScopeData1;
+String adcScopeData2;
 String channelMode1;
 String channelMode2;
 
@@ -61,26 +61,31 @@ void clearUartScopeData(void)
 /////////////////
 //ADC SCOPE DATA
 /////////////////
-void addADCScopeData(String ADCSCOPEDATA)
+void addADCScopeData1(String ADCSCOPEDATA)
 {
-  adcScopeData += " ";
-  adcScopeData += ADCSCOPEDATA;
+  adcScopeData1 += " ";
+  adcScopeData1 += ADCSCOPEDATA;
 }
-String getADCScopeData(void)
+String getADCScopeData1(void)
 {
-  return adcScopeData;
+  return adcScopeData1;
 }
-void setLastADCScopeData(String LASTADCSCOPEDATA)
+void addADCScopeData2(String ADCSCOPEDATA)
 {
-  lastAdcScopeData = LASTADCSCOPEDATA;
+  adcScopeData2 += " ";
+  adcScopeData2 += ADCSCOPEDATA;
 }
-String getLastADCScopeData(void)
+String getADCScopeData2(void)
 {
-  return lastAdcScopeData;
+  return adcScopeData2;
 }
-void clearADCScopeData(void)
+void clearADCScopeData1(void)
 {
-  adcScopeData = "";
+  adcScopeData1 = "";
+}
+void clearADCScopeData2(void)
+{
+  adcScopeData2 = "";
 }
 
 /////////////////

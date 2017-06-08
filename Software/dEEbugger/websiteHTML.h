@@ -13,7 +13,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var i2cDeviceArray = [];
     var i2cRegisterArray = [];
     var lastI2CDeviceAddress = null;
-  var lastI2CControlRegister = null;
+    var lastI2CControlRegister = null;
     var channelSelect1 = "OFF";
     var channelSelect2 = "OFF";
     var timeScaleSelect = "2";
@@ -44,7 +44,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var xPlotSamplesPerSecond = 200;
     var xPlotTotalTimeMax = 10;
     var xPlotTotalTime = 10; //Time in seconds
-    var yPlotMax = 5;
+    var yPlotMax = 64;
     var channelIncomingYPlotPosition1 = 0;
     var channelIncomingYPlotPosition2 = 0;
     var peakDetectInputValue = 0;
@@ -65,13 +65,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 
     function start()
     {
-      //websock = new WebSocket('ws://deebugger.local:81/');
+      //websock = new WebSocket('ws://192.168.4.1:81/');
       websock = new WebSocket('ws://' + window.location.hostname + ':81/');
       websock.onopen = function(evt)
       {
         console.log('websock open');
-        websock.send("SCOPE CHANNEL 1 ADC");
-        websock.send("SCOPE CHANNEL 2 OFF");
+        websock.send("SCOPE CHANNEL 1 4V ADC");
+        websock.send("SCOPE CHANNEL 2 64V ADC");
         websock.send("SCOPE TIMESCALE 40");
       };
       websock.onclose = function(evt)
@@ -296,14 +296,14 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           (xDivisions * xPlotTotalTimeMax  * xPlotScaleFactor/ 6).toFixed(0) + "s").width / 2, (plotCanvasHeight - 10));
       }
       var yDivisions = 1;
-      for(yDivisions = 1; yDivisions < 3; yDivisions++)
+      for(yDivisions = 1; yDivisions < 4; yDivisions++)
       {
         pctx.beginPath();
-        pctx.moveTo(0, (yDivisions * plotCanvasHeight / 3));
-        pctx.lineTo(plotCanvasWidth, (yDivisions * plotCanvasHeight / 3));
+        pctx.moveTo(0, (yDivisions * plotCanvasHeight / 4));
+        pctx.lineTo(plotCanvasWidth, (yDivisions * plotCanvasHeight / 4));
         pctx.closePath();
         pctx.stroke();
-        pctx.fillText((yDivisions / 3 * ((yPlotMax) / yPlotScaleFactor)).toFixed(2) + " V", 5, (plotCanvasHeight - (plotCanvasHeight * yDivisions / 3) - 5));
+        pctx.fillText((yDivisions / 4 * ((yPlotMax) / yPlotScaleFactor)).toFixed(1) + " V", 5, (plotCanvasHeight - (plotCanvasHeight * yDivisions / 4) - 5));
       }
       peakDetectFirstReadFlag = false;
     }
@@ -314,7 +314,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       {
         var plotElementID = document.getElementById("plotElement");
         var pctx = plotElementID.getContext("2d");
-        incomingYPlotPosition = ((incomingYPlotPosition / 1024) * yPlotMax);
+        incomingYPlotPosition = ((incomingYPlotPosition / 4096) * yPlotMax);
         if(xPlotCurrentPosition > (plotCanvasWidth - 1))
         {
           clearPlot();
@@ -323,11 +323,19 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         xPlotCurrentPosition += xPlotPositionStep;
         if(wsMessageArray[2] === "DATACHANNEL1")
         {
-          channelIncomingYPlotPosition1 = incomingYPlotPosition;
+            if(document.getElementById("channelSelectElement1").value==="4V ADC")
+            {
+                incomingYPlotPosition = incomingYPlotPosition/16;
+            }
+            channelIncomingYPlotPosition1 = incomingYPlotPosition;
         }
         else if(wsMessageArray[2] === "DATACHANNEL2")
         {
-          channelIncomingYPlotPosition2 = incomingYPlotPosition;
+            if(document.getElementById("channelSelectElement2").value==="4V ADC")
+            {
+                incomingYPlotPosition = incomingYPlotPosition/16;
+            }
+            channelIncomingYPlotPosition2 = incomingYPlotPosition;
         }
         pctx.lineWidth = plotCanvasHeight / 50;
         if(dataChannelOnFlag1)
@@ -794,14 +802,14 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       </button> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Channel 1</span> <select id="channelSelectElement1" onchange="changeChannelSelect1();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
           <option value="OFF">Off</option>
-          <option value="ADC" selected="selected">ADC</option>
-          <option value="I2C">I2C</option>
+          <option value="4V ADC" selected="selected">4V ADC</option>
+          <option value="64V ADC">64V ADC</option>
           <option value="UART">UART</option>
         </select> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Channel 2</span> <select id="channelSelectElement2" onchange="changeChannelSelect2();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
-          <option value="OFF" selected="selected">Off</option>
-          <option value="ADC">ADC</option>
-          <option value="I2C">I2C</option>
+          <option value="OFF">Off</option>
+          <option value="4V ADC">4V ADC</option>
+          <option value="64V ADC" selected="selected">64V ADC</option>
           <option value="UART">UART</option>
         </select> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Y Zoom</span> <select id="yScaleSelectElement" onchange="changeYScale();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
@@ -810,6 +818,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           <option value="5">5X</option>
           <option value="10">10X</option>
           <option value="25">25X</option>
+          <option value="50">50X</option>
         </select> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">X Zoom</span> <select id="xScaleSelectElement" onchange="changeXScale();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
           <option value="1" selected="selected">1X</option>

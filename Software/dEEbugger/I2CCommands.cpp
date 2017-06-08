@@ -8,20 +8,22 @@ void scanI2CAddressAndRegisters(WebSocketsServer &WEBSOCKETOBJECT)
   nDevices = 0;
   for(address = 1; address < 127; address++ )
   {
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
- 
-    if (error == 0)
-    {
-      newDevice = "SERIAL I2C DEVICE ";
-      if (address<16)
-      {
-        newDevice += "0";
-      }
-      newDevice += String(address, HEX);
-	    WEBSOCKETOBJECT.broadcastTXT(newDevice);
-      nDevices++;
-	    scanI2CRegisters(WEBSOCKETOBJECT, address);
+    if(address!=54){
+        Wire.beginTransmission(address);
+        error = Wire.endTransmission();
+     
+        if (error == 0)
+        {
+          newDevice = "SERIAL I2C DEVICE ";
+          if (address<16)
+          {
+            newDevice += "0";
+          }
+          newDevice += String(address, HEX);
+    	    WEBSOCKETOBJECT.broadcastTXT(newDevice);
+          nDevices++;
+    	    scanI2CRegisters(WEBSOCKETOBJECT, address);
+        }
     }
   }
 }
@@ -33,20 +35,22 @@ void scanI2CAddress(WebSocketsServer &WEBSOCKETOBJECT)
   String newDevice = "";
   nDevices = 0;
   for(address = 1; address < 127; address++ )
-  {
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
- 
-    if (error == 0)
-    {
-      newDevice = "SERIAL I2C DEVICE ";
-      if (address<16)
-      {
-        newDevice += "0";
-      }
-      newDevice += String(address, HEX);
-	    WEBSOCKETOBJECT.broadcastTXT(newDevice);
-      nDevices++;
+  {    
+    if(address!=54){
+        Wire.beginTransmission(address);
+        error = Wire.endTransmission();
+     
+        if (error == 0)
+        {
+          newDevice = "SERIAL I2C DEVICE ";
+          if (address<16)
+          {
+            newDevice += "0";
+          }
+          newDevice += String(address, HEX);
+    	    WEBSOCKETOBJECT.broadcastTXT(newDevice);
+          nDevices++;
+        }
     }
   }
 }
@@ -57,29 +61,31 @@ void scanI2CRegisters(WebSocketsServer &WEBSOCKETOBJECT, byte ADDRESS)
   String newRegisterRead = "";
   for(internalRegister = 1; internalRegister < 255; internalRegister++ )
   {
-    Wire.beginTransmission(ADDRESS);
-    Wire.write(internalRegister);
-    internalError = Wire.endTransmission();
-    Wire.requestFrom(ADDRESS, 1); 
-    if (Wire.available() > 0)
-    { 
-      readValue = Wire.read();
-      if(readValue>0)
-      {
-        newRegisterRead = "SERIAL I2C REGISTER ";
-        if (internalRegister<16)
-        {
-          newRegisterRead += "0";
-        }
-        newRegisterRead += String(internalRegister,HEX);
-        newRegisterRead += " ";
-          if (readValue<16)
+    if(ADDRESS!=54){
+        Wire.beginTransmission(ADDRESS);
+        Wire.write(internalRegister);
+        internalError = Wire.endTransmission();
+        Wire.requestFrom(ADDRESS, 1); 
+        if (Wire.available() > 0)
+        { 
+          readValue = Wire.read();
+          if(readValue>0)
           {
-            newRegisterRead += "0";
+            newRegisterRead = "SERIAL I2C REGISTER ";
+            if (internalRegister<16)
+            {
+              newRegisterRead += "0";
+            }
+            newRegisterRead += String(internalRegister,HEX);
+            newRegisterRead += " ";
+              if (readValue<16)
+              {
+                newRegisterRead += "0";
+              }
+              newRegisterRead += String(readValue,HEX);
+    	  	  WEBSOCKETOBJECT.broadcastTXT(newRegisterRead);
           }
-          newRegisterRead += String(readValue,HEX);
-	  	  WEBSOCKETOBJECT.broadcastTXT(newRegisterRead);
-      }
+        }
     }
   }
 }
