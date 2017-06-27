@@ -1,6 +1,8 @@
 # dEEbugger
 [The dEEbugger is an ESP8266 based keychain swiss army knife for electronics](https://gfycat.com/OrneryPlushAbalone)
 
+This patch modifies the graticule: 
+![Alt text](/Pictures/Revised Scope Graticule.jpg?raw=true "Revised Graticule")
 
 ![Alt text](/Pictures/ON_KEYS.jpg?raw=true "Keychain")
 
