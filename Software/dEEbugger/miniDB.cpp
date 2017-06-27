@@ -15,6 +15,7 @@ String channelMode2;
 void setMsTimer(int TIME)
 {
 	msTimer = TIME;
+
 }
 int getMsTimer(void)
 {
@@ -44,7 +45,7 @@ bool getUartScopeFlag(void)
 {
   return uartScopeFlag;
 }
-void setUartScopeData(String UARTSCOPEDATA)
+void setUartSco   peData(String UARTSCOPEDATA)
 {
   uartScopeData += " ";
   uartScopeData += UARTSCOPEDATA;

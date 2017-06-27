@@ -43,7 +43,7 @@ void webSocketDataInterpreter(WebSocketsServer &WEBSOCKETOBJECT, String WEBSOCKE
       //Look at start of line for subtokens, add +1 to length to account for space
       subLevelToken = "CHANNEL 1";
       setChannelMode1(scopeCommand.substring(subLevelToken.length()+1));
-    }
+     }
     if(scopeCommand.startsWith("CHANNEL 2"))
     {
       //Look at start of line for subtokens, add +1 to length to account for space

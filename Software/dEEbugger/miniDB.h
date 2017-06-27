@@ -16,6 +16,11 @@ String getUartScopeData(void);
 void clearUartScopeData(void);
 
 //ADC SCOPE DATA
+void addADCScopeData(String ADCSCOPEDATA);
+String getADCScopeData(void);
+void setLastADCScopeData(String LASTADCSCOPEDATA);
+String getLastADCScopeData(void);
+void clearADCScopeData(void); //rcc
 void addADCScopeData1(String ADCSCOPEDATA);
 void addADCScopeData2(String ADCSCOPEDATA);
 String getADCScopeData1(void);

@@ -39,12 +39,12 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var yPlotOldPosition = 0;
     var yPlotOldPositionLine2 = 0;
     var xPlotPositionStep = 0;
-    var yPlotScaleFactor = 1;
+    var yPlotScaleFactor = 10;   // RCC nb setting a different start point
     var xPlotScaleFactor = 1;
-    var xPlotSamplesPerSecond = 200;
+    var xPlotSamplesPerSecond = 200; // rcc is actualy 1000/msTimer..rcc nb does not get used in position plot ?? only in clear screen ??? may need modifying as i now have more calcs every sample
     var xPlotTotalTimeMax = 10;
     var xPlotTotalTime = 10; //Time in seconds
-    var yPlotMax = 64;
+    var yPlotMax = 64;  // RCC ALL SET UP FOR 2048 INPUT = 64 v
     var channelIncomingYPlotPosition1 = 0;
     var channelIncomingYPlotPosition2 = 0;
     var peakDetectInputValue = 0;
@@ -70,9 +70,9 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       websock.onopen = function(evt)
       {
         console.log('websock open');
-        websock.send("SCOPE CHANNEL 1 4V ADC");
-        websock.send("SCOPE CHANNEL 2 64V ADC");
-        websock.send("SCOPE TIMESCALE 40");
+        websock.send("SCOPE CHANNEL 1 INT ADC");
+        websock.send("SCOPE CHANNEL 2 OFF");
+        websock.send("SCOPE TIMESCALE 40"); //rcc note is cal for timebase?..
       };
       websock.onclose = function(evt)
       {
@@ -269,8 +269,10 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     function clearPlot()
     {
       var plotElementID = document.getElementById("plotElement");
-      var pctx = plotElementID.getContext("2d");
-      xPlotPositionStep = plotCanvasWidth / (xPlotTotalTimeMax * xPlotSamplesPerSecond * xPlotScaleFactor);
+      var pctx = plotElementID.getContext("2d"); 
+     // xPlotSamplesPerSecond= 1000 / getMsTimer(); //Rcc need this really
+      xPlotSamplesPerSecond=25; //rcc what it should be with mstimer=40
+      xPlotPositionStep = 1* plotCanvasWidth / (xPlotTotalTimeMax * xPlotSamplesPerSecond * xPlotScaleFactor); //original with xplotsamples per second to make thos work..
       pctx.fillStyle = "white";
       pctx.clearRect(0, 0, plotCanvasWidth, plotCanvasHeight);
       pctx.beginPath();
@@ -285,27 +287,42 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       pctx.strokeStyle = "#EDEDEE";
       pctx.lineWidth = plotCanvasHeight / 90;
       var xDivisions = 1;
-      for(xDivisions = 1; xDivisions < 6; xDivisions++)
+      var Xgrid=10; // added 
+    
+      for(xDivisions = 1; xDivisions < Xgrid; xDivisions++)
       {
         pctx.beginPath();
-        pctx.moveTo((xDivisions * plotCanvasWidth / 6), 0);
-        pctx.lineTo((xDivisions * plotCanvasWidth / 6), plotCanvasHeight);
+        pctx.moveTo((xDivisions * plotCanvasWidth / Xgrid), 0);
+        pctx.lineTo((xDivisions * plotCanvasWidth / Xgrid), plotCanvasHeight);
         pctx.closePath();
         pctx.stroke();
-        pctx.fillText((xDivisions * xPlotTotalTimeMax * xPlotScaleFactor / 6).toFixed(0) + "s", ((plotCanvasWidth * xDivisions / 6)) - pctx.measureText(
-          (xDivisions * xPlotTotalTimeMax  * xPlotScaleFactor/ 6).toFixed(0) + "s").width / 2, (plotCanvasHeight - 10));
+        if ((xPlotTotalTimeMax*xPlotScaleFactor ) <= 5){ // rcc note xplot factor is 1/ the multiplier
+        pctx.fillText((xDivisions * xPlotTotalTimeMax * xPlotScaleFactor / Xgrid).toFixed(2) + "s", ((plotCanvasWidth * xDivisions / Xgrid)) - pctx.measureText(
+          (xDivisions * xPlotTotalTimeMax  * xPlotScaleFactor/ Xgrid).toFixed(2) + "s").width / 2, (plotCanvasHeight - 10));
+        }
+        else{
+            pctx.fillText((xDivisions * xPlotTotalTimeMax * xPlotScaleFactor / Xgrid).toFixed(0) + "s", ((plotCanvasWidth * xDivisions / Xgrid)) - pctx.measureText(
+          (xDivisions * xPlotTotalTimeMax  * xPlotScaleFactor/ Xgrid).toFixed(0) + "s").width / 2, (plotCanvasHeight - 10));
+        }
+        
       }
+
+      
       var yDivisions = 1;
-      for(yDivisions = 1; yDivisions < 4; yDivisions++)
+      var   VGridLines =6 ; // (RCC this was original number of horizonmtal lines +1 
+      var VScale = VGridLines*64/60   ;
+      // rcc yes this is horrid, I should have modified the code differently.. 
+       for(yDivisions = 1; yDivisions < VGridLines; yDivisions++)
       {
         pctx.beginPath();
-        pctx.moveTo(0, (yDivisions * plotCanvasHeight / 4));
-        pctx.lineTo(plotCanvasWidth, (yDivisions * plotCanvasHeight / 4));
+        pctx.moveTo(0, plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale));
+        pctx.lineTo(plotCanvasWidth, plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale));
         pctx.closePath();
         pctx.stroke();
-        pctx.fillText((yDivisions / 4 * ((yPlotMax) / yPlotScaleFactor)).toFixed(1) + " V", 5, (plotCanvasHeight - (plotCanvasHeight * yDivisions / 4) - 5));
-      }
-      peakDetectFirstReadFlag = false;
+        //rcc positions  plot down ! 
+        pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) + " V", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
+    }
+            peakDetectFirstReadFlag = false;
     }
 
     function updatePlot(incomingYPlotPosition)
@@ -314,7 +331,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       {
         var plotElementID = document.getElementById("plotElement");
         var pctx = plotElementID.getContext("2d");
-        incomingYPlotPosition = ((incomingYPlotPosition / 4096) * yPlotMax);
+        incomingYPlotPosition = ((incomingYPlotPosition / 4096) * yPlotMax);  //RCC NOTE 4096
         if(xPlotCurrentPosition > (plotCanvasWidth - 1))
         {
           clearPlot();
@@ -323,18 +340,18 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         xPlotCurrentPosition += xPlotPositionStep;
         if(wsMessageArray[2] === "DATACHANNEL1")
         {
-            if(document.getElementById("channelSelectElement1").value==="4V ADC")
-            {
-                incomingYPlotPosition = incomingYPlotPosition/16;
-            }
+            //if(document.getElementById("channelSelectElement1").value==="4V ADC")
+            //{
+            // incomingYPlotPosition = incomingYPlotPosition/16;  //RCC CHANGE TO YSCALE  makes this section redundant?
+            //}
             channelIncomingYPlotPosition1 = incomingYPlotPosition;
         }
         else if(wsMessageArray[2] === "DATACHANNEL2")
         {
-            if(document.getElementById("channelSelectElement2").value==="4V ADC")
-            {
-                incomingYPlotPosition = incomingYPlotPosition/16;
-            }
+           // if(document.getElementById("channelSelectElement2").value==="4V ADC")
+           //{
+           // incomingYPlotPosition = incomingYPlotPosition/16;  //RCC CHANGE TO YSCALE  makes this redundant?
+           //}
             channelIncomingYPlotPosition2 = incomingYPlotPosition;
         }
         pctx.lineWidth = plotCanvasHeight / 50;
@@ -801,33 +818,40 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         <b>Pause: Off</b>
       </button> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Channel 1</span> <select id="channelSelectElement1" onchange="changeChannelSelect1();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
-          <option value="OFF">Off</option>
-          <option value="4V ADC" selected="selected">4V ADC</option>
-          <option value="64V ADC">64V ADC</option>
+           <option value="OFF">Off</option>
+           <option value="SCALES">HX711 Scales</option> 
+           <option value="INT ADC"selected="selected">Internal ADC</option> 
+           <option value="DIG">Digital Input</option>
+           <option value="4V ADC" >4V ADC</option>
+           <option value="64V ADC">64V ADC</option>
+          
           <option value="UART">UART</option>
         </select> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Channel 2</span> <select id="channelSelectElement2" onchange="changeChannelSelect2();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
-          <option value="OFF">Off</option>
+          <option value="OFF" selected="selected">Off</option>
+          <option value="INT ADC">Internal ADC</option>
+          <option value="DIG">Digital Input</option>
           <option value="4V ADC">4V ADC</option>
-          <option value="64V ADC" selected="selected">64V ADC</option>
+          <option value="64V ADC">64V ADC</option>
           <option value="UART">UART</option>
         </select> </div>
-      <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Y Zoom</span> <select id="yScaleSelectElement" onchange="changeYScale();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
-          <option value="1" selected="selected">1X</option>
+      <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Signal Zoom</span> <select id="yScaleSelectElement" onchange="changeYScale();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
+          <option value="1" >1X</option>
           <option value="2">2X</option>
           <option value="5">5X</option>
-          <option value="10">10X</option>
-          <option value="25">25X</option>
+          <option value="10" selected="selected">10X</option>
+          <option value="20">20X</option>
           <option value="50">50X</option>
         </select> </div>
-      <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">X Zoom</span> <select id="xScaleSelectElement" onchange="changeXScale();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
+      <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Time Zoom</span> <select id="xScaleSelectElement" onchange="changeXScale();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
           <option value="1" selected="selected">1X</option>
           <option value="2">2X</option>
           <option value="5">5X</option>
           <option value="10">10X</option>
-          <option value="25">25X</option>
-        </select> </div>
+          <option value="20">20X</option>
+          </select> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Max X Scale</span> <select id="timescaleSelectElement" onchange="changeTimeScale();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
+          <option value="2" >2s</option>
           <option value="10" selected="selected">10s</option>
           <option value="20">20s</option>
           <option value="30">30s</option>

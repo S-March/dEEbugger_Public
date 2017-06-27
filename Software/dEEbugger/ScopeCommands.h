@@ -8,6 +8,8 @@
 #include "I2CCommands.h"
 #include "miniDB.h"
 
+#define D_Input D3  //rcc  
+
 void scopeInit(void);
 void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT);
 void ADCInit(void);
