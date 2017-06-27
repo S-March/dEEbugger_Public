@@ -45,7 +45,7 @@ bool getUartScopeFlag(void)
 {
   return uartScopeFlag;
 }
-void setUartSco   peData(String UARTSCOPEDATA)
+void setUartScopeData(String UARTSCOPEDATA)
 {
   uartScopeData += " ";
   uartScopeData += UARTSCOPEDATA;
