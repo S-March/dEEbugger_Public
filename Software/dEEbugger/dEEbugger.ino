@@ -1,4 +1,21 @@
 #include <Arduino.h>
+// NodeMCU numbering
+/*  / these are defined in arduino 
+  static const uint8_t D0   = 16;  and Red Led on NodeMcu V2 (not present on NodeMCU v3)
+  static const uint8_t D1   = 5;
+  static const uint8_t D2   = 4;
+  static const uint8_t D3   = 0;
+  static const uint8_t D4   = 2;  and Blue Led on SP8266
+  static const uint8_t D5   = 14;
+  static const uint8_t D6   = 12;
+  static const uint8_t D7   = 13;
+  static const uint8_t D8   = 15;
+  static const uint8_t D9   = 3;
+  static const uint8_t D10  = 1;
+  #define BlueLed 2 // NB  same as PIN D4!
+*/
+
+
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #include <WebSocketsServer.h>
@@ -13,9 +30,9 @@
 #include <Wire.h>
 #include "miniDB.h"
 #include "websiteHTML.h"
-#include "WebsocketInterpreter.h"
+#include "WebsocketInterpreter.h" 
 
-#define APMODE_BOOT_PIN 4
+
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 void handleRoot();
@@ -31,10 +48,13 @@ String webSocketData = "";
 
 unsigned long oldTime = 0;
 unsigned long oldTimeADC = 0;
-unsigned long currentTime = 0;
-
+unsigned long currentTime = 0; 
+//rcc
+unsigned long TestTime = 0;
+int SPS=0;
+// rcc end
 const char *ssid = "dEEbugger";
-const char *password = "DEBUGGIN4DAYZ";
+const char *password = "debuggin4dayz";
 
 MDNSResponder mdns;
 
@@ -42,11 +62,19 @@ ESP8266WiFiMulti WiFiMulti;
 
 ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
+#define APMODE_BOOT_PIN D3  //rcc  press this pin to ground to start in AP mode.. 
 
 void setup()
-{  
+
+{   
   Serial.begin(115200);
-  if(digitalRead(APMODE_BOOT_PIN))
+  pinMode(D_Input ,INPUT_PULLUP);
+  pinMode(D4, OUTPUT);
+  digitalWrite(D4,0); //RCC LED ON
+  delay(1000);
+  
+
+  if(!digitalRead(APMODE_BOOT_PIN))
   {
     WiFi.disconnect();
     WiFi.softAP(ssid, password);
@@ -80,7 +108,7 @@ void setup()
     MDNS.addService("http", "tcp", 80);
     MDNS.addService("ws", "tcp", 81); 
   }
-
+  digitalWrite(D4,1); //RCC led OFF?
   ArduinoOTA.setHostname("dEEbugger");
   ArduinoOTA.onStart([]()
   {Serial.println("Start");});
@@ -109,11 +137,15 @@ void setup()
   Wire.begin(); 
 
   scopeInit();
-  setMsTimer(40);
+  setMsTimer(40);  // wcalibration for timebase    
+  TestTime=0;
+  SPS=0;
 }
 
 void loop()
-{  
+{   
+  //rcc test  Serial.println(hx711.read()/100.0);
+  // test ends
   currentTime = millis();
   serialEvent();
   ArduinoOTA.handle();
@@ -129,8 +161,9 @@ void loop()
     webSocketDataInterpreter(webSocket, webSocketData);
     webSocketData = "";
   }
-  if((currentTime - oldTime)>=getMsTimer())
+  if((currentTime - oldTime)>=getMsTimer()) //getmstimer is the calibration ?...
   {
+
     scopeHandler(webSocket);
     webSocketData = "";
     oldTime = currentTime;
