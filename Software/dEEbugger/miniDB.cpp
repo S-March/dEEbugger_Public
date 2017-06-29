@@ -2,6 +2,7 @@
 
 int msTimer;
 bool dataLogFlag;
+bool dataTAREFlag;
 bool uartScopeFlag;
 String uartScopeData;
 String adcScopeData1;
@@ -14,8 +15,17 @@ String channelMode2;
 /////////////////
 void setMsTimer(int TIME)
 {
-	msTimer = TIME;
+  String  MSGdata ;
+	msTimer = TIME; 
+  Serial.print(" Setting msTimer to:");
+  Serial.print(msTimer);
+  Serial.println("ms");
 
+   MSGdata = "SCOPE SETTINGS SPS ";  // 
+   MSGdata += String ( (1000/getMsTimer()),DEC);    //Samples per second are 1000/ mstimer.
+    BROADCAST(MSGdata);
+    Serial.print("...updated msTimer , sending:");
+    Serial.println(MSGdata);
 }
 int getMsTimer(void)
 {
@@ -32,6 +42,17 @@ void setDataLog(bool LOG)
 bool getDataLog(void)
 {
   return dataLogFlag;
+}
+/////////////
+//Scales Flags
+//////////////
+void setTARE(bool LOG)
+{
+  dataTAREFlag = LOG;
+}
+bool getTARE(void)
+{
+  return dataTAREFlag;
 }
 
 /////////////////

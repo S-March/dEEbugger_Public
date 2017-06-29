@@ -27,6 +27,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var dataChannelOnFlag1 = true;
     var dataChannelOnFlag2 = false;
     var dataLogFlag = false;
+    var dataTAREFlag= false;
     var terminalConnectFlag = true;
     //Plot Variables
     var plotCanvasWidth = 0;
@@ -38,13 +39,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var xPlotOldPositionLine2 = 0;
     var yPlotOldPosition = 0;
     var yPlotOldPositionLine2 = 0;
-    var xPlotPositionStep = 0;
-    var yPlotScaleFactor = 10;   // RCC nb setting a different start point
-    var xPlotScaleFactor = 1;
-    var xPlotSamplesPerSecond = 200; // rcc is actualy 1000/msTimer..rcc nb does not get used in position plot ?? only in clear screen ??? may need modifying as i now have more calcs every sample
+     var yPlotScaleFactor = 10;   // DAG nb setting a different start point
+     var xPlotScaleFactor = 1;
+     var xPlotSamplesPerSecond = 25; // DAG is actually 1000/msTimer
+     var xPlotPositionStep = 10;  //DAG is used as delta t in plot in scope calculated later from xplot samples per secons etc.... 
     var xPlotTotalTimeMax = 10;
-    var xPlotTotalTime = 10; //Time in seconds
-    var yPlotMax = 64;  // RCC ALL SET UP FOR 2048 INPUT = 64 v
+    var xPlotTotalTime = 10; 
+    var yPlotMax = 64;           // DAG Scope displ;ay is basically set up for 2048 INPUT = 64 v
     var channelIncomingYPlotPosition1 = 0;
     var channelIncomingYPlotPosition2 = 0;
     var peakDetectInputValue = 0;
@@ -72,7 +73,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         console.log('websock open');
         websock.send("SCOPE CHANNEL 1 INT ADC");
         websock.send("SCOPE CHANNEL 2 OFF");
-        websock.send("SCOPE TIMESCALE 40"); //rcc note is cal for timebase?..
+        websock.send("SCOPE TIMESCALE 40");
       };
       websock.onclose = function(evt)
       {
@@ -102,7 +103,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 
     function scopeEventHandler()
     {
-      if(wsMessageArray[1] === "ADC")
+        if(wsMessageArray[1] === "ADC")
       {
         if(wsMessageArray[2] === "DATACHANNEL1")
         {
@@ -180,7 +181,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         clearPlot();
       }
       if(wsMessageArray[1] === "SETTINGS")
-      {
+            {
+ //       websock.send("In scope settings.."); //DAG
         if(wsMessageArray[2] === "YSCALE")
         {
           yPlotScaleFactor = parseInt(wsMessageArray[3]);
@@ -194,6 +196,11 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         if(wsMessageArray[2] === "YMAX")
         {
           yPlotMax = parseInt(wsMessageArray[3]);
+          clearPlot();
+        }
+        if(wsMessageArray[2] === "SPS")
+        {     
+          xPlotSamplesPerSecond = parseInt(wsMessageArray[3]); 
           clearPlot();
         }
       }
@@ -247,6 +254,11 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         {
           yPlotMax = parseInt(wsMessageArray[3]);
           clearPlot();
+        } 
+        if(wsMessageArray[2] === "SPS")
+        {
+          xPlotSamplesPerSecond = parseInt(wsMessageArray[3]); 
+          clearPlot();
         }
       }
     }
@@ -270,9 +282,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     {
       var plotElementID = document.getElementById("plotElement");
       var pctx = plotElementID.getContext("2d"); 
-     // xPlotSamplesPerSecond= 1000 / getMsTimer(); //Rcc need this really
-      xPlotSamplesPerSecond=25; //rcc what it should be with mstimer=40
-      xPlotPositionStep = 1* plotCanvasWidth / (xPlotTotalTimeMax * xPlotSamplesPerSecond * xPlotScaleFactor); //original with xplotsamples per second to make thos work..
+      xPlotPositionStep = plotCanvasWidth / (xPlotTotalTimeMax * xPlotSamplesPerSecond * xPlotScaleFactor); //DAG modified and using sps   
       pctx.fillStyle = "white";
       pctx.clearRect(0, 0, plotCanvasWidth, plotCanvasHeight);
       pctx.beginPath();
@@ -296,7 +306,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         pctx.lineTo((xDivisions * plotCanvasWidth / Xgrid), plotCanvasHeight);
         pctx.closePath();
         pctx.stroke();
-        if ((xPlotTotalTimeMax*xPlotScaleFactor ) <= 5){ // rcc note xplot factor is 1/ the multiplier
+        if ((xPlotTotalTimeMax*   xPlotScaleFactor ) <= 5){                // DAG note xplot factor is 1  / the multiplier
         pctx.fillText((xDivisions * xPlotTotalTimeMax * xPlotScaleFactor / Xgrid).toFixed(2) + "s", ((plotCanvasWidth * xDivisions / Xgrid)) - pctx.measureText(
           (xDivisions * xPlotTotalTimeMax  * xPlotScaleFactor/ Xgrid).toFixed(2) + "s").width / 2, (plotCanvasHeight - 10));
         }
@@ -309,18 +319,17 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 
       
       var yDivisions = 1;
-      var   VGridLines =6 ; // (RCC this was original number of horizonmtal lines +1 
-      var VScale = VGridLines*64/60   ;
-      // rcc yes this is horrid, I should have modified the code differently.. 
-       for(yDivisions = 1; yDivisions < VGridLines; yDivisions++)
+      var   VGridLines =6 ; // (DAG this was original number of horizonmtal lines +1 
+      var VScale = VGridLines*64/60   ;   // DAG yes this is horrid, I should have modified the code differently.. 
+      for(yDivisions = 1; yDivisions < VGridLines; yDivisions++)
       {
         pctx.beginPath();
         pctx.moveTo(0, plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale));
         pctx.lineTo(plotCanvasWidth, plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale));
         pctx.closePath();
         pctx.stroke();
-        //rcc positions  plot down ! 
-        pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) + " V", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
+        //DAG revised this function and removed "V" as it can be kG or Volts.. pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) + " ", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));}
+        pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) +"", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
     }
             peakDetectFirstReadFlag = false;
     }
@@ -331,7 +340,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       {
         var plotElementID = document.getElementById("plotElement");
         var pctx = plotElementID.getContext("2d");
-        incomingYPlotPosition = ((incomingYPlotPosition / 4096) * yPlotMax);  //RCC NOTE 4096
+        incomingYPlotPosition = ((incomingYPlotPosition / 4096) * yPlotMax);  //DAG NOTE 4096
         if(xPlotCurrentPosition > (plotCanvasWidth - 1))
         {
           clearPlot();
@@ -342,7 +351,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         {
             //if(document.getElementById("channelSelectElement1").value==="4V ADC")
             //{
-            // incomingYPlotPosition = incomingYPlotPosition/16;  //RCC CHANGE TO YSCALE  makes this section redundant?
+            // incomingYPlotPosition = incomingYPlotPosition/16;  //DAG CHANGE TO YSCALE  makes this section redundant?
             //}
             channelIncomingYPlotPosition1 = incomingYPlotPosition;
         }
@@ -350,7 +359,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         {
            // if(document.getElementById("channelSelectElement2").value==="4V ADC")
            //{
-           // incomingYPlotPosition = incomingYPlotPosition/16;  //RCC CHANGE TO YSCALE  makes this redundant?
+           // incomingYPlotPosition = incomingYPlotPosition/16;  //DAG CHANGE TO YSCALE  makes this redundant?
            //}
             channelIncomingYPlotPosition2 = incomingYPlotPosition;
         }
@@ -651,6 +660,23 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         websock.send("SCOPE DATALOG ON");
       }
     }
+     function toggleTARE()
+    {
+      if(dataTAREFlag)
+      {
+        dataTAREFlag = false;
+        document.getElementById("toggleTAREButton").innerHTML = "<b> TARE: Off</b>"
+        document.getElementById("toggleTAREButton").style.backgroundColor = "#E87D75";
+        websock.send("SCOPE TARE OFF");
+      }
+      else
+      {
+        dataTAREFlag = true;
+        document.getElementById("toggleTAREButton").innerHTML = "<b> TARE: On</b>"
+        document.getElementById("toggleTAREButton").style.backgroundColor = "#4E4E56";
+        websock.send("SCOPE TARE ON");
+      }
+    }
 
     function toggleTerminalEcho()
     {
@@ -864,6 +890,9 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       </button> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh; margin-bottom:2.5vh;"> <span style="width: 100%; height:2.5vh;">Log Data</span> <button id="toggleDataLogButton" style="display:block; -webkit-appearance: none; width: 70%; height: 10vh; background-color: #E87D75; color:white; text-decoration: none; border: 0; padding: 0; border-radius: 5px; font-family:Helvetica; margin-left:15%;" onclick="toggleDataLog()">
         <b>Log Data: Off</b>
+      </button> </div>
+       <div style="width: 100%; height:12.5vh; margin-top:2.5vh; margin-bottom:2.5vh;"> <span style="width: 100%; height:2.5vh;">Tare</span> <button id="toggleTAREButton" style="display:block; -webkit-appearance: none; width: 70%; height: 10vh; background-color: #E87D75; color:white; text-decoration: none; border: 0; padding: 0; border-radius: 5px; font-family:Helvetica; margin-left:15%;" onclick="toggleTARE()">
+        <b>Tare: Off</b>
       </button> </div>
     </div><!--NOTE: This comment is to prevent white space between inline blocking elements.
   ---><div id="terminalSettingsElement" style="display:none; width:100%; height:77.5vh; overflow-y:auto; text-align:center; ">

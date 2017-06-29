@@ -9,3 +9,4 @@
 void scanI2CAddressAndRegisters(WebSocketsServer &WEBSOCKETOBJECT);
 void scanI2CAddress(WebSocketsServer &WEBSOCKETOBJECT);
 void scanI2CRegisters(WebSocketsServer &WEBSOCKETOBJECT, byte ADDRESS);
+boolean SinglescanI2CAddress(WebSocketsServer &WEBSOCKETOBJECT,byte address);

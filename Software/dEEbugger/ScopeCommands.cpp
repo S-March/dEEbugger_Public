@@ -1,17 +1,45 @@
 #include "ScopeCommands.h"
-#include <Q2HX711.h>
-const byte hx711_data_pin = D5;
-const byte hx711_clock_pin = D6 ;
-Q2HX711 hx711(SDA, SCL); //rcc wire interface defaults
+#include <HX711.h>
 
+HX711 scale;
+
+boolean ScalesPresent;
 String channelModeOutput1;
 String channelModeOutput2;
 bool toggledChannelOffFlag1;
 bool toggledChannelOffFlag2;
-byte ADCAddress = 54;  adc address on 12c
+byte ADCAddress = 54;  //adc address on 12c
 
-long CH1Scale =1 ; //RCc new variables for scaling everything
+long CH1Scale =1 ; //DAG new variables for scaling everything
 long CH2Scale =1 ;
+boolean ScalesConnected(void){
+    return ScalesPresent;
+}
+void ScalesInit(byte Data,byte Clock){
+  pinMode(Data, INPUT_PULLUP);
+  Serial.print("Testing for Scales...");
+  // a HX711 present should pull Data down..
+  SetScalesConnected(!digitalRead(Data));
+  if (ScalesConnected()) {
+           Serial.println(" Initiating HX711 ");
+           scale.begin(Data, Clock);
+  }  
+  else {
+    Serial.println(" No HX711 Present");
+  }
+}
+void SetScalesConnected(boolean set){
+  ScalesPresent=set;
+}
+String readScales(void){ 
+  String Reading;
+  Reading="0";
+  if (ScalesConnected()) {
+           Serial.println(" Reading HX711 ");
+          Reading= String (scale.read());
+  }  
+  return Reading;
+}
 void scopeInit(void)
 {
   
@@ -30,17 +58,21 @@ void scopeInit(void)
 void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT)
 {
   //Channel 1
-  if( (getChanneMode1()=="4V ADC")||(getChanneMode1()=="64V ADC")||(getChanneMode1()=="INT ADC")||(getChanneMode1()=="DIG") )
+  if( (getChanneMode1()=="4V ADC")||(getChanneMode1()=="64V ADC")||(getChanneMode1()=="INT ADC")||(getChanneMode1()=="DIG")|| (getChanneMode1()=="SCALES") )
   {
     toggledChannelOffFlag1 = false;
-    channelModeOutput1 = "SCOPE ADC DATACHANNEL1 ";  // RCC ADDED SPACE TO WORK WITH SCALE FACTOR string IN NEXT LINE
-    channelModeOutput1 += String ( (((getADCScopeData1().toInt()*4096/64)/CH1Scale)),DEC);    //rcc  to scale,(4096 =64v)/CH1Scale) order is to ensure INT stays big for longer in the sum to avoid truncation..
+    channelModeOutput1 = "SCOPE ADC DATACHANNEL1 ";  // DAG ADDED SPACE TO WORK WITH SCALE FACTOR string IN NEXT LINE
+    channelModeOutput1 += String ( (((getADCScopeData1().toInt()*4096/64)/CH1Scale)),DEC);    //DAG  to scale,(4096 =64v)/CH1Scale) order is to ensure INT stays big for longer in the sum to avoid truncation..
     WEBSOCKETOBJECT.broadcastTXT(channelModeOutput1);
     if(getDataLog())
     {
+      if (getChanneMode1()!="SCALES"){
       Serial.print("CHANNEL1 mV, ");
-     // Serial.println(getADCScopeData1()); 
-      Serial.println(getADCScopeData1().toInt()*1000/CH1Scale);
+      }
+      else{
+        Serial.print("CHANNEL1 grams, ");
+        }
+        Serial.println(getADCScopeData1().toInt()*1000/CH1Scale);
     }
     clearADCScopeData1();
   }
@@ -67,7 +99,7 @@ void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT)
   {
     toggledChannelOffFlag2 = false;
     channelModeOutput2 = "SCOPE ADC DATACHANNEL2 ";
-    channelModeOutput2 += String ( (((getADCScopeData2().toInt()*4096/64)/CH2Scale)),DEC);    //rcc trying to scale,(4096 =64v)/CHxScale) order is to ensure INT stays big for longer in the sum to avoid truncation..
+    channelModeOutput2 += String ( (((getADCScopeData2().toInt()*4096/64)/CH2Scale)),DEC);    //DAG trying to scale,(4096 =64v)/CHxScale) order is to ensure INT stays big for longer in the sum to avoid truncation..
 
     WEBSOCKETOBJECT.broadcastTXT(channelModeOutput2);
     if(getDataLog())
@@ -164,27 +196,25 @@ byte DigPin = D_Input;
         addADCScopeData1(String((analogRead(0)) ));  //3.3v ref, output in mv1024 not 2048
         CH1Scale=1024/3.3;
     }
+  if(getChanneMode1()=="SCALES")
+    {
+         addADCScopeData1(readScales() ) ;   //readScales() is a string so no need for the String function and includes a check for presence
+         CH1Scale=16777216/5; //DAG NB 24 bit scale, 5KG EXPECTED TO READ AS 5 V!
+     }
     
-    if(getChanneMode1()=="4V ADC")
+  if(getChanneMode1()=="4V ADC")
     {
         setADCChannel(0);
         addADCScopeData1(String(ADCRead()));
         CH1Scale=2048/4;
     }
-    if(getChanneMode1()=="64V ADC")
+  if(getChanneMode1()=="64V ADC")
     {
         setADCChannel(1);
         addADCScopeData1(String(ADCRead()));
         CH1Scale=2048/64;
-    } 
-     if(getChanneMode1()=="SCALES")
-    {
-        setADCChannel(1);
-        addADCScopeData1(String(hx711.read()) ) ;
-        CH1Scale=2^24/5; //rcc 24 bit scale!
-    } 
-   
-    if(getChanneMode2()=="DIG")
+    }    
+  if(getChanneMode2()=="DIG")
     {
      // Serial.println(digitalRead(13));  //test
        if  (digitalRead(DigPin)==1){  
