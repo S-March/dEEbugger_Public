@@ -329,8 +329,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         pctx.closePath();
         pctx.stroke();
         //DAG revised this function and removed "V" as it can be kG or Volts.. pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) + " ", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));}
-        pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) +"", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
-    }
+       if(document.getElementById("channelSelectElement1").value==="SCALES"){
+        pctx.fillText((( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor)-1).toFixed(1) +" Kg", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
+       }                            //                                        ^ DAG note -1 gives a scale offset to match the  "64"  (equivalent of 1Kg) offset in the scales in scope commands
+       else {
+       pctx.fillText( (yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) +" V", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
+       }                                                      
+       }
             peakDetectFirstReadFlag = false;
     }
 

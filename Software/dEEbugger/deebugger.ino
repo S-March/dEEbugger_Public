@@ -1,5 +1,5 @@
    #include <Arduino.h>
-/// NodeMCU numbering
+/// NodeMCU numbering //this update: 08 July 2017
 /*  / these are defined in arduino 
   static const uint8_t D0   = 16;  and Red Led on NodeMcu V2 (not present on NodeMCU v3)
   static const uint8_t D1   = 5;
@@ -143,6 +143,7 @@ void setup()
     //  scanI2CAddress(webSocket);
      Serial.println(SinglescanI2CAddress(webSocket,60));
       Serial.println(SinglescanI2CAddress(webSocket,50));
+      Serial.println("testing for HX 711   ");
   ScalesInit(D5,D6);    
 }
 

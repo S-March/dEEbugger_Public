@@ -9,24 +9,38 @@ String channelModeOutput2;
 bool toggledChannelOffFlag1;
 bool toggledChannelOffFlag2;
 byte ADCAddress = 54;  //adc address on 12c
-
+long offset=64;
 long CH1Scale =1 ; //DAG new variables for scaling everything
 long CH2Scale =1 ;
 boolean ScalesConnected(void){
     return ScalesPresent;
 }
 void ScalesInit(byte Data,byte Clock){
-  pinMode(Data, INPUT_PULLUP);
-  Serial.print("Testing for Scales...");
+   long reading =0;
+   pinMode(Data, INPUT_PULLUP);
+  Serial.print("Testing for Scales..."); 
+  scale.begin(14, 12);
+  reading= scale.read();
+  Serial.println(reading);
+ if (reading !=-1) {
+    Serial.println("  HX711 PRESENT ");
+     SetScalesConnected(1);
+    }  
+    else {
+      Serial.println(" No HX711 Present");
+      SetScalesConnected(0);
+    }
   // a HX711 present should pull Data down..
-  SetScalesConnected(!digitalRead(Data));
   if (ScalesConnected()) {
-           Serial.println(" Initiating HX711 ");
-           scale.begin(Data, Clock);
-  }  
-  else {
-    Serial.println(" No HX711 Present");
-  }
+    Serial.println("Initializing the scale");
+    Serial.print("read: \t\t");
+    Serial.println(readScales());      // print a raw reading
+    
+  scale.set_scale(209.f);    // this value is obtained by calibrating the scale with known weights; see the README for details
+  scale.tare();                // reset the scale to 0
+  Serial.print("Tared..read: \t\t");
+    Serial.println(scale.get_units());   
+}
 }
 void SetScalesConnected(boolean set){
   ScalesPresent=set;
@@ -35,8 +49,8 @@ String readScales(void){
   String Reading;
   Reading="0";
   if (ScalesConnected()) {
-           Serial.println(" Reading HX711 ");
-          Reading= String (scale.read());
+          // Serial.println(" Reading HX711 ");
+          Reading= String (scale.get_units());
   }  
   return Reading;
 }
@@ -62,7 +76,11 @@ void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT)
   {
     toggledChannelOffFlag1 = false;
     channelModeOutput1 = "SCOPE ADC DATACHANNEL1 ";  // DAG ADDED SPACE TO WORK WITH SCALE FACTOR string IN NEXT LINE
-    channelModeOutput1 += String ( (((getADCScopeData1().toInt()*4096/64)/CH1Scale)),DEC);    //DAG  to scale,(4096 =64v)/CH1Scale) order is to ensure INT stays big for longer in the sum to avoid truncation..
+    if( getChanneMode1()=="SCALES"){
+      channelModeOutput1 += String ( (((getADCScopeData1().toInt()*4096/64)/CH1Scale)+offset),DEC);    //DAG  to scale,(4096 =64v)/CH1Scale) order is to ensure INT stays big for longer in the sum to avoid truncation..
+    }
+    else {channelModeOutput1 += String ( (((getADCScopeData1().toInt()*4096/64)/CH1Scale)),DEC);    //DAG  to scale,(4096 =64v)/CH1Scale) order is to ensure INT stays big for longer in the sum to avoid truncation..
+    }
     WEBSOCKETOBJECT.broadcastTXT(channelModeOutput1);
     if(getDataLog())
     {
@@ -72,7 +90,7 @@ void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT)
       else{
         Serial.print("CHANNEL1 grams, ");
         }
-        Serial.println(getADCScopeData1().toInt()*1000/CH1Scale);
+        Serial.println((getADCScopeData1().toInt()*1000/CH1Scale)   );
     }
     clearADCScopeData1();
   }
@@ -199,7 +217,7 @@ byte DigPin = D_Input;
   if(getChanneMode1()=="SCALES")
     {
          addADCScopeData1(readScales() ) ;   //readScales() is a string so no need for the String function and includes a check for presence
-         CH1Scale=16777216/5; //DAG NB 24 bit scale, 5KG EXPECTED TO READ AS 5 V!
+         CH1Scale=-1000; //DAG NB set in initscales to grammes, 5KG EXPECTED TO READ AS 5 V!
      }
     
   if(getChanneMode1()=="4V ADC")
