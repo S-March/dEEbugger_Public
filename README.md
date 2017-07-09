@@ -3,5 +3,5 @@
 
 This patch modifies /improves the graticule: 
 ![Alt text](/Pictures/Revised_Grat.jpg?raw=true "Revised Graticule")
-![Alt text](/Pictures/Screen_kg.jpg?raw=true "Example of HX711 scope")
+![Alt text](/Pictures/Screen kg.JPG?raw=true "Example of HX711 scope")
 
