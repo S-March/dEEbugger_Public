@@ -27,24 +27,26 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var dataChannelOnFlag1 = true;
     var dataChannelOnFlag2 = false;
     var dataLogFlag = false;
+    var dataOSDFlag= false;
     var terminalConnectFlag = true;
     //Plot Variables
-    var plotCanvasWidth = 0;
-    var plotCanvasHeight = 0;
+    var plotCanvasWidth = 1024;
+    var plotCanvasHeight = 800; // just defaults...
     var xPlotCurrentPosition = 0.5;
+    var xPlotCurrentPosition2 = 0.5;
     var yPlotCurrentPosition = 0;
     var yPlotCurrentPosition2 = 0;
     var xPlotOldPosition = 0;
-    var xPlotOldPositionLine2 = 0;
+    var xPlotOldPosition2 = 0;
     var yPlotOldPosition = 0;
-    var yPlotOldPositionLine2 = 0;
-    var xPlotPositionStep = 0;
-    var yPlotScaleFactor = 10;   // RCC nb setting a different start point
-    var xPlotScaleFactor = 1;
-    var xPlotSamplesPerSecond = 200; // rcc is actualy 1000/msTimer..rcc nb does not get used in position plot ?? only in clear screen ??? may need modifying as i now have more calcs every sample
+    var yPlotOldPosition2 = 0;
+     var yPlotScaleFactor = 10;   // DAG nb setting a different start point
+     var xPlotScaleFactor = 1;
+     var xPlotmSTimer = 500;  // more correctly single channel sample interval timer 
+     var xPlotPositionStep = 10;  //DAG is used as delta t in plot in scope calculated later from xPlotmSTimer etc.... 
     var xPlotTotalTimeMax = 10;
-    var xPlotTotalTime = 10; //Time in seconds
-    var yPlotMax = 64;  // RCC ALL SET UP FOR 2048 INPUT = 64 v
+    var xPlotTotalTime = 10; 
+    var yPlotMax = 64;           // DAG Scope displ;ay is basically set up for 2048 INPUT = 64 v
     var channelIncomingYPlotPosition1 = 0;
     var channelIncomingYPlotPosition2 = 0;
     var peakDetectInputValue = 0;
@@ -62,7 +64,9 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var peakDetectPeakYValue = 0;
     var peakDetectDataWindowPosYValue = 0;
     var peakDetectDataWindowNegYValue = 0;
-
+    var data2send="";
+    var FirstAfterCLS=0;
+    
     function start()
     {
       //websock = new WebSocket('ws://192.168.4.1:81/');
@@ -70,9 +74,15 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       websock.onopen = function(evt)
       {
         console.log('websock open');
-        websock.send("SCOPE CHANNEL 1 INT ADC");
-        websock.send("SCOPE CHANNEL 2 OFF");
-        websock.send("SCOPE TIMESCALE 40"); //rcc note is cal for timebase?..
+       // websock.send("SCOPE CHANNEL 1 INT ADC");
+        websock.send("SCOPE CHANNEL 1 SCALES");
+        websock.send("SCOPE CHANNEL 2 SCALESB"); 
+        data2send="";
+        data2send = "SCOPE MSTIMER ";
+        data2send += xPlotmSTimer;
+        websock.send(data2send);
+        //websock.send("SCOPE MSTIMER 500");  // note there is somethng wrong with the mstimer  change routines..either in the web interpreter or the html or 
+       // websock.send("SCOPE SPS 1");  // dag note max rate for two scales to be read alternately
       };
       websock.onclose = function(evt)
       {
@@ -102,7 +112,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 
     function scopeEventHandler()
     {
-      if(wsMessageArray[1] === "ADC")
+        if(wsMessageArray[1] === "ADC")
       {
         if(wsMessageArray[2] === "DATACHANNEL1")
         {
@@ -180,7 +190,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         clearPlot();
       }
       if(wsMessageArray[1] === "SETTINGS")
-      {
+            {
+ //       websock.send("In scope settings.."); //DAG
         if(wsMessageArray[2] === "YSCALE")
         {
           yPlotScaleFactor = parseInt(wsMessageArray[3]);
@@ -194,6 +205,16 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         if(wsMessageArray[2] === "YMAX")
         {
           yPlotMax = parseInt(wsMessageArray[3]);
+          clearPlot();
+        }
+        if(wsMessageArray[2] === "SPS")
+        {     
+          xPlotmSTimer = 1000/parseInt(wsMessageArray[3]); 
+          clearPlot();
+        }
+        if(wsMessageArray[2] === "MSTIMER")
+        {     
+          xPlotmSTimer = parseInt(wsMessageArray[3]); 
           clearPlot();
         }
       }
@@ -247,6 +268,16 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         {
           yPlotMax = parseInt(wsMessageArray[3]);
           clearPlot();
+        } 
+        if(wsMessageArray[2] === "SPS")
+        {     
+          xPlotmSTimer = 1000/parseInt(wsMessageArray[3]); 
+          clearPlot();
+        }
+        if(wsMessageArray[2] === "MSTIMER")
+        {     
+          xPlotmSTimer = parseInt(wsMessageArray[3]); 
+          clearPlot();
         }
       }
     }
@@ -262,7 +293,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       plotCanvasWidth = plotElementID.width;
       plotCanvasHeight = plotElementID.height;
       yPlotCurrentPosition = plotCanvasHeight;
-      yPlotOldPositionLine2 = plotCanvasHeight;
+      yPlotOldPosition2 = plotCanvasHeight;
       clearPlot();
     }
 
@@ -270,16 +301,22 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     {
       var plotElementID = document.getElementById("plotElement");
       var pctx = plotElementID.getContext("2d"); 
-     // xPlotSamplesPerSecond= 1000 / getMsTimer(); //Rcc need this really
-      xPlotSamplesPerSecond=25; //rcc what it should be with mstimer=40
-      xPlotPositionStep = 1* plotCanvasWidth / (xPlotTotalTimeMax * xPlotSamplesPerSecond * xPlotScaleFactor); //original with xplotsamples per second to make thos work..
+     // websock.send("xPlotmSTimer");
+     //  websock.send(xPlotmSTimer);
+      xPlotPositionStep = (((plotCanvasWidth * xPlotmSTimer)/ (xPlotTotalTimeMax * xPlotScaleFactor))/1000); //DAG modified and using mstimer   
+     //  websock.send("xplotposition step");
+     //  websock.send(xPlotPositionStep);
       pctx.fillStyle = "white";
       pctx.clearRect(0, 0, plotCanvasWidth, plotCanvasHeight);
       pctx.beginPath();
       pctx.fillRect(0, 0, plotCanvasWidth, plotCanvasHeight);
+      
       xPlotOldPosition = 0;
-      xPlotOldPositionLine2 = 0;
+      xPlotOldPosition2 = 0;
       xPlotCurrentPosition = 0.5;
+      xPlotCurrentPosition2 = 0.5;
+      
+      
       pctx.lineJoin = "round";
       pctx.lineCap = "round";
       pctx.font = (plotCanvasHeight / 25) + "px Helvetica";
@@ -296,7 +333,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         pctx.lineTo((xDivisions * plotCanvasWidth / Xgrid), plotCanvasHeight);
         pctx.closePath();
         pctx.stroke();
-        if ((xPlotTotalTimeMax*xPlotScaleFactor ) <= 5){ // rcc note xplot factor is 1/ the multiplier
+        if ((xPlotTotalTimeMax*   xPlotScaleFactor ) <= 5){                // DAG note xplot factor is 1  / the multiplier
         pctx.fillText((xDivisions * xPlotTotalTimeMax * xPlotScaleFactor / Xgrid).toFixed(2) + "s", ((plotCanvasWidth * xDivisions / Xgrid)) - pctx.measureText(
           (xDivisions * xPlotTotalTimeMax  * xPlotScaleFactor/ Xgrid).toFixed(2) + "s").width / 2, (plotCanvasHeight - 10));
         }
@@ -309,20 +346,25 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
 
       
       var yDivisions = 1;
-      var   VGridLines =6 ; // (RCC this was original number of horizonmtal lines +1 
-      var VScale = VGridLines*64/60   ;
-      // rcc yes this is horrid, I should have modified the code differently.. 
-       for(yDivisions = 1; yDivisions < VGridLines; yDivisions++)
+      var   VGridLines =6 ; // (DAG this was original number of horizonmtal lines +1 
+      var VScale = VGridLines*64/60   ;   // DAG yes this is horrid, I should have modified the code differently.. 
+      for(yDivisions = 1; yDivisions < VGridLines; yDivisions++)
       {
         pctx.beginPath();
         pctx.moveTo(0, plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale));
         pctx.lineTo(plotCanvasWidth, plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale));
         pctx.closePath();
         pctx.stroke();
-        //rcc positions  plot down ! 
-        pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) + " V", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
-    }
+        //DAG revised this function and removed "V" as it can be kG or Volts.. pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) + " ", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));}
+       if((document.getElementById("channelSelectElement1").value==="SCALES")||(document.getElementById("channelSelectElement2").value==="SCALES")||(document.getElementById("channelSelectElement2").value==="SCALESB")){
+        pctx.fillText((( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor)-1).toFixed(1) +" Kg", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
+       }                            //                                        ^ DAG note -1 gives a scale offset to match the  "64"  (equivalent of 1Kg) offset in the scales in scope commands
+       else {
+       pctx.fillText( (yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) +" V", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
+       }                                                      
+       }
             peakDetectFirstReadFlag = false;
+            FirstAfterCLS=0;
     }
 
     function updatePlot(incomingYPlotPosition)
@@ -331,32 +373,25 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       {
         var plotElementID = document.getElementById("plotElement");
         var pctx = plotElementID.getContext("2d");
-        incomingYPlotPosition = ((incomingYPlotPosition / 4096) * yPlotMax);  //RCC NOTE 4096
-        if(xPlotCurrentPosition > (plotCanvasWidth - 1))
+        incomingYPlotPosition = ((incomingYPlotPosition / 4096) * yPlotMax);  //DAG NOTE 4096
+        if(xPlotCurrentPosition > (plotCanvasWidth - 1)||(xPlotCurrentPosition2 > (plotCanvasWidth - 1)))
         {
           clearPlot();
         }
-        xPlotOldPosition = xPlotCurrentPosition;
-        xPlotCurrentPosition += xPlotPositionStep;
-        if(wsMessageArray[2] === "DATACHANNEL1")
-        {
-            //if(document.getElementById("channelSelectElement1").value==="4V ADC")
-            //{
-            // incomingYPlotPosition = incomingYPlotPosition/16;  //RCC CHANGE TO YSCALE  makes this section redundant?
-            //}
-            channelIncomingYPlotPosition1 = incomingYPlotPosition;
-        }
-        else if(wsMessageArray[2] === "DATACHANNEL2")
-        {
-           // if(document.getElementById("channelSelectElement2").value==="4V ADC")
-           //{
-           // incomingYPlotPosition = incomingYPlotPosition/16;  //RCC CHANGE TO YSCALE  makes this redundant?
-           //}
-            channelIncomingYPlotPosition2 = incomingYPlotPosition;
-        }
+               
         pctx.lineWidth = plotCanvasHeight / 50;
-        if(dataChannelOnFlag1)
-        {
+        if(dataChannelOnFlag1 && (wsMessageArray[2] === "DATACHANNEL1"))
+        { 
+          if (FirstAfterCLS === 0){
+        //    websock.send("CH1 first");
+          FirstAfterCLS=1;
+          xPlotOldPosition2=(xPlotOldPosition2+ (xPlotPositionStep/2))
+          xPlotCurrentPosition2=(xPlotCurrentPosition2+ (xPlotPositionStep/2)); //offset other channel by half timestep
+          }
+          channelIncomingYPlotPosition1 = incomingYPlotPosition;
+          
+          xPlotOldPosition = xPlotCurrentPosition;
+          xPlotCurrentPosition += xPlotPositionStep;
           yPlotOldPosition = yPlotCurrentPosition;
           yPlotCurrentPosition = channelIncomingYPlotPosition1 * yPlotScaleFactor;
           yPlotCurrentPosition = yPlotCurrentPosition * (plotCanvasHeight / yPlotMax);
@@ -373,17 +408,34 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
             peakDetectInputValue = plotCanvasHeight - yPlotCurrentPosition;
             peakDetectFinder(peakDetectInputValue);
           }
+          if(dataOSDFlag)
+          {
+             if(document.getElementById("channelSelectElement1").value==="SCALES")
+                  { OSDdisplay( (incomingYPlotPosition-1).toFixed(2) +" kG",0);} 
+             else {  OSDdisplay( (incomingYPlotPosition).toFixed(2) +" V",0);}
+           }
         }
-        if(dataChannelOnFlag2)
-        {
+     if(dataChannelOnFlag2 && (wsMessageArray[2] === "DATACHANNEL2"))
+        { 
+          if (FirstAfterCLS === 0){
+          //  websock.send("CH2 first");
+            FirstAfterCLS=2;
+          xPlotOldPosition=(xPlotOldPosition+ (xPlotPositionStep/2))
+          xPlotCurrentPosition=(xPlotCurrentPosition+ (xPlotPositionStep/2)); //offset other channel by half timestep
+          }
+          
+          channelIncomingYPlotPosition2 = incomingYPlotPosition;
+          
+          xPlotOldPosition2 = xPlotCurrentPosition2;
+          xPlotCurrentPosition2 += xPlotPositionStep
           yPlotOldPosition2 = yPlotCurrentPosition2;
           yPlotCurrentPosition2 = channelIncomingYPlotPosition2 * yPlotScaleFactor;
           yPlotCurrentPosition2 = yPlotCurrentPosition2 * (plotCanvasHeight / yPlotMax);
           yPlotCurrentPosition2 = plotCanvasHeight - yPlotCurrentPosition2;
           pctx.strokeStyle = "#7CCFF8";
           pctx.beginPath();
-          pctx.moveTo(xPlotOldPosition, yPlotOldPositionLine2);
-          pctx.lineTo(xPlotCurrentPosition, yPlotCurrentPosition2);
+          pctx.moveTo(xPlotOldPosition2, yPlotOldPosition2);
+          pctx.lineTo(xPlotCurrentPosition2, yPlotCurrentPosition2);
           pctx.closePath();
           pctx.stroke();
           if(peakDetectionFlag)
@@ -392,9 +444,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
             peakDetectInputValue = plotCanvasHeight - yPlotCurrentPosition2;
             peakDetectFinder(peakDetectInputValue);
           }
-          yPlotOldPositionLine2 = yPlotCurrentPosition2;
-          xPlotOldPositionLine2 = xPlotCurrentPosition;
-        }
+          if(dataOSDFlag)
+          {
+             if((document.getElementById("channelSelectElement2").value==="SCALES")||(document.getElementById("channelSelectElement2").value==="SCALESB"))
+                  { OSDdisplay( (incomingYPlotPosition-1).toFixed(2) +" kG",1);} 
+             else {  OSDdisplay( (incomingYPlotPosition).toFixed(2) +" V",1);}
+           }
+        } // end ch 2
       }
     }
 
@@ -651,7 +707,40 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         websock.send("SCOPE DATALOG ON");
       }
     }
-
+     function toggleOSD()
+    {
+      if(dataOSDFlag)
+      {
+        dataOSDFlag = false;
+        document.getElementById("toggleOSDButton").innerHTML = "<b> OSD: Off</b>"
+        document.getElementById("toggleOSDButton").style.backgroundColor = "#E87D75";
+        websock.send("SCOPE OSD OFF");
+      }
+      else
+      {
+        dataOSDFlag = true;
+        document.getElementById("toggleOSDButton").innerHTML = "<b> OSD: On</b>"
+        document.getElementById("toggleOSDButton").style.backgroundColor = "#4E4E56";
+        websock.send("SCOPE OSD ON");
+      }
+    }
+    function OSDdisplay(incomingData,Chan)
+    { var plotElementID = document.getElementById("plotElement");   // dag to do change spacing to relate to canvas width
+      var pctx = plotElementID.getContext("2d");
+      var TextHeight = (plotCanvasHeight / 10);
+      pctx.fillStyle = "white";
+      pctx.clearRect((30+(Chan*plotCanvasWidth/5)), 10, 150, TextHeight);
+      pctx.beginPath();
+      pctx.fillRect((30+(Chan*plotCanvasWidth/5)),  10, 150, TextHeight);
+      pctx.font = TextHeight + "px Helvetica";
+      pctx.fillStyle = "black";
+      //websock.send("OSD write");
+      //pctx.font = "24px Helvitica";
+      //pctx.fillText( "TEST", 30,30);
+       pctx.fillText( incomingData, (30+(Chan*plotCanvasWidth/5)), (TextHeight+10) ,(plotCanvasWidth/5));
+  
+    }
+    
     function toggleTerminalEcho()
     {
       if(terminalEchoFlag)
@@ -819,8 +908,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       </button> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Channel 1</span> <select id="channelSelectElement1" onchange="changeChannelSelect1();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
            <option value="OFF">Off</option>
-           <option value="SCALES">HX711 Scales</option> 
-           <option value="INT ADC"selected="selected">Internal ADC</option> 
+           <option value="SCALES"selected="selected">HX711 Scales Ch_A</option> 
+           <option value="INT ADC">Internal ADC</option> 
            <option value="DIG">Digital Input</option>
            <option value="4V ADC" >4V ADC</option>
            <option value="64V ADC">64V ADC</option>
@@ -828,7 +917,9 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           <option value="UART">UART</option>
         </select> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Channel 2</span> <select id="channelSelectElement2" onchange="changeChannelSelect2();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
-          <option value="OFF" selected="selected">Off</option>
+          <option value="OFF">Off</option>
+          <option value="SCALES">HX711 Scales Ch_A</option> 
+          <option value="SCALESB" selected="selected">HX711 Scales Ch_B</option> 
           <option value="INT ADC">Internal ADC</option>
           <option value="DIG">Digital Input</option>
           <option value="4V ADC">4V ADC</option>
@@ -864,6 +955,9 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       </button> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh; margin-bottom:2.5vh;"> <span style="width: 100%; height:2.5vh;">Log Data</span> <button id="toggleDataLogButton" style="display:block; -webkit-appearance: none; width: 70%; height: 10vh; background-color: #E87D75; color:white; text-decoration: none; border: 0; padding: 0; border-radius: 5px; font-family:Helvetica; margin-left:15%;" onclick="toggleDataLog()">
         <b>Log Data: Off</b>
+      </button> </div>
+       <div style="width: 100%; height:12.5vh; margin-top:2.5vh; margin-bottom:2.5vh;"> <span style="width: 100%; height:2.5vh;">OSD</span> <button id="toggleOSDButton" style="display:block; -webkit-appearance: none; width: 70%; height: 10vh; background-color: #E87D75; color:white; text-decoration: none; border: 0; padding: 0; border-radius: 5px; font-family:Helvetica; margin-left:15%;" onclick="toggleOSD()">
+        <b>OSD: Off</b>
       </button> </div>
     </div><!--NOTE: This comment is to prevent white space between inline blocking elements.
   ---><div id="terminalSettingsElement" style="display:none; width:100%; height:77.5vh; overflow-y:auto; text-align:center; ">
