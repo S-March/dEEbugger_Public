@@ -12,14 +12,14 @@
 
 void scopeInit(void);
 
-void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT);
+void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT,byte Chan);
 
 void ADCInit(void);
 void setADCChannel(int CHANNEL);
 int ADCRead(void);
-void ADCHandler(byte chan);
+void ADCHandler(boolean Chan);
 void ScalesInit(byte Data,byte Clock);
 boolean ScalesConnected(void);
 void SetScalesConnected(boolean set);
-long readScales(byte Chan);
+String readScales(byte Chan);
 

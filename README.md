@@ -1,44 +1,24 @@
-# dEEbugger
-[The dEEbugger is an ESP8266 based keychain swiss army knife for electronics](https://gfycat.com/OrneryPlushAbalone)
+# dEEbugger for NODEMCU hardware
+[The original dEEbugger is an ESP8266 based keychain swiss army knife for electronics](https://gfycat.com/OrneryPlushAbalone)
+
+I have tried to keep the same github format as the original dEEbugger Git in case S-March wishes to use any of my updates.
+
+This patch modifies /improves the graticule: and adds other features..
+It is compatible with NodeMCU hardware. 
+
+My primary use for this software is as a filament force display for 3D printers see: [Filament Force sensor](https://www.thingiverse.com/thing:2429390)
+
+![Alt text](/Pictures/30Hz%20sine%20wave.png " 30Hz signal on Revised Graticule")
+Note that the ADC cannot be read whilst the ESP is updating the websocket to update the scope display , so my code deliberately displays a blank line where the ADC data is missing. It takes samples for about 2 seconds, then updates the scope display. 
+
+This example below shows a HX711 interface for strain gauges so that weight/force measurements can be made, and with some force applied to the sensor:The non sampled gaps are visible as blanks in the display
+![Alt text](/Pictures/HX711%20channel%20showing%20signal%20gaps.png)
+
+I have also added an OSD for slowly chganging signals:
+![Alt text](/Pictures/OSD.png)
 
 
-![Alt text](/Pictures/ON_KEYS.jpg?raw=true "Keychain")
-
-The device was designed with breakouts for the two ADC channels, UART and I2C. It can run off of 5V or 3.3V or USB power. If USB is being used, the 5V and 3.3V pins can be used as outputs.
-
-![Alt text](/Pictures/FULL_CALLOUTS.jpg?raw=true "Callout Main")
-
-## Oscilloscope
-To use the dEEbugger, plug in power and navigate to dEEbugger.local in you browser. If your devices does not support mDNS, you can just navigate to the dEEbugger IP address instead.
-
-![Alt text](/Pictures/04.png?raw=true "Oscilloscope Main")
-#### Two Channels (ADC and UART Stream)
-Chose between multiple inputs for the channels. In the below picture the red is an ADC channel and the blue is a UART stream of numbers.
-
-![Alt text](/Pictures/07.png?raw=true "Two Channels")
-#### Peak Detection
-The dEEbugger supports real time peak detection as well.
-
-![Alt text](/Pictures/09.png?raw=true "Peak Detection")
 
 
-## Serial Terminal
-#### Local Echo
-In additin to acting as an oscilloscope, the dEEbugger can act as a "wireless" serial terminal allowing you to send and receive data over the UART pins through the web application
-
-![Alt text](/Pictures/10.png?raw=true "Local Echo")
-#### Terminal Options
-Terminal settings: connect/disconnect button, baud rate selection, terminal clear button and enable/disable a local echo.
-
-![Alt text](/Pictures/11.png?raw=true "Terminal Options")
 
 
-## I2C Controller
-#### Find Devices
-When "Find Devices" button is pressed, a list of all I2C devices on the bus will be returned.
-
-![Alt text](/Pictures/13.png?raw=true "Find Devices")
-#### Read Device
-When a device is selected, all readable registers will be returned with their current values.
-
-![Alt text](/Pictures/14.png?raw=true "Read Device")

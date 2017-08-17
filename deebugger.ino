@@ -1,4 +1,22 @@
-#include <Arduino.h>
+   #include <Arduino.h>
+/// NodeMCU numbering //this update: 08 July 2017
+/*  / these are defined in arduino 
+  static const uint8_t D0   = 16;  and Red Led on NodeMcu V2 (not present on NodeMCU v3)
+  static const uint8_t D1   = 5;
+  static const uint8_t D2   = 4;
+  static const uint8_t D3   = 0;
+  static const uint8_t D4   = 2;  and Blue Led on SP8266
+  static const uint8_t D5   = 14;
+  static const uint8_t D6   = 12;
+  static const uint8_t D7   = 13;
+  static const uint8_t D8   = 15;
+  static const uint8_t D9   = 3;
+  static const uint8_t D10  = 1;
+  #define BlueLed 2 // NB  same as PIN D4!
+  
+*/
+
+
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #include <WebSocketsServer.h>
@@ -11,11 +29,10 @@
 #include <DNSServer.h>
 #include <WiFiManager.h>
 #include <Wire.h>
-#include "miniDB.h"
+//#include "miniDB.h" // called from scope commands and websocket interprete
 #include "websiteHTML.h"
-#include "WebsocketInterpreter.h"
+#include "WebsocketInterpreter.h" 
 
-#define APMODE_BOOT_PIN 4
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
 void handleRoot();
@@ -31,10 +48,16 @@ String webSocketData = "";
 
 unsigned long oldTime = 0;
 unsigned long oldTimeADC = 0;
-unsigned long currentTime = 0;
+unsigned long currentTime = 0; 
+
+//DAG added
+String SettingsData;
+boolean PHASE;
+boolean ADC1READ;
+// DAG end
 
 const char *ssid = "dEEbugger";
-const char *password = "DEBUGGIN4DAYZ";
+const char *password = "debuggin4dayz";
 
 MDNSResponder mdns;
 
@@ -42,11 +65,20 @@ ESP8266WiFiMulti WiFiMulti;
 
 ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
+#define APMODE_BOOT_PIN D3  //DAG  press this pin to ground to start in AP mode.. 
+
+void BROADCAST(String MSG); 
 
 void setup()
-{  
+
+{   
   Serial.begin(115200);
-  if(digitalRead(APMODE_BOOT_PIN))
+  pinMode(D_Input ,INPUT_PULLUP);
+  pinMode(D4, OUTPUT);
+  digitalWrite(D4,0); //DAG Turn on the blue LED 
+  delay(1000);
+
+  if(!digitalRead(APMODE_BOOT_PIN))
   {
     WiFi.disconnect();
     WiFi.softAP(ssid, password);
@@ -80,7 +112,7 @@ void setup()
     MDNS.addService("http", "tcp", 80);
     MDNS.addService("ws", "tcp", 81); 
   }
-
+  digitalWrite(D4,1); //DAG led OFF?
   ArduinoOTA.setHostname("dEEbugger");
   ArduinoOTA.onStart([]()
   {Serial.println("Start");});
@@ -98,42 +130,65 @@ void setup()
     else if (error == OTA_END_ERROR) Serial.println("End Failed");
   });
   ArduinoOTA.begin();
-
   server.on("/", handleRoot);
   server.onNotFound(handleNotFound);
   server.begin();
-
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  
   Wire.begin(); 
-
   scopeInit();
-  setMsTimer(40);
+  setMsTimer(500);  // initial 2Hz lazyflash timer for scope sampling rate timebase 
+  SetScalesConnected(0);
+  currentTime = millis();
+  SettingsData="";
+   Serial.println("testing for Connected I2C devices");
+    //  scanI2CAddress(webSocket);
+     Serial.println(SinglescanI2CAddress(webSocket,60));
+      Serial.println(SinglescanI2CAddress(webSocket,50));
+      Serial.println("testing for HX 711   ");
+  ScalesInit(D5,D6);  
+  ADC1READ=0;  
+  Serial.println("Waiting for browser to connect");
+}
+
+void BROADCAST(String MSG){
+   webSocket.broadcastTXT(MSG); 
 }
 
 void loop()
-{  
+{
+
   currentTime = millis();
   serialEvent();
   ArduinoOTA.handle();
   webSocket.loop();
   server.handleClient();
-  if((currentTime - oldTimeADC)>=5)
-  {
-    ADCHandler();
-    oldTimeADC = currentTime;
-  }
-  if(webSocketData!="")
+   if(webSocketData!="")
   {
     webSocketDataInterpreter(webSocket, webSocketData);
     webSocketData = "";
+    ADCHandler(0);   // not neat but doing this after a message allows for chs being turned off and updating the web server
+    ADCHandler(1);   // Do both channels or 
+    scopeHandler(webSocket,0);
   }
-  if((currentTime - oldTime)>=getMsTimer())
-  {
-    scopeHandler(webSocket);
+if(((currentTime - oldTime)>=(getMsTimer()/2))&& (ADC1READ!=1)){ // Half time
+  if (getChanneMode2()!="OFF") 
+        {digitalWrite(D4,0); //DAG LED flashing
+        ADCHandler(1);   
+        scopeHandler(webSocket,1);
+        ADC1READ=1;// Do channel 1 alternately if on but just once
+        digitalWrite(D4,1); //DAG LED flashing 
+        }}
+  
+ if((currentTime - oldTime)>=getMsTimer()) //getmstimer reads the set SPS (inverted) in integer ms 
+   { digitalWrite(D4,0); //DAG LED flashing
+    ADCHandler(0);   // Do channels alternately if both ch on
+    scopeHandler(webSocket,0);
+    ADC1READ=0;   
+    PHASE=!PHASE;
     webSocketData = "";
-    oldTime = currentTime;
+    oldTime = oldTime+getMsTimer();  // dag allow for "slip" to try to keep in clock sync...
+    digitalWrite(D4,1); //DAG LED flashing 
   }
 }
 

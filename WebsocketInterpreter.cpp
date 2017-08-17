@@ -74,12 +74,6 @@ void webSocketDataInterpreter(WebSocketsServer &WEBSOCKETOBJECT, String WEBSOCKE
       {
         setDataLog(false);
       }
-    }if(scopeCommand.startsWith("TIMESCALE"))
-    {
-      //Look at start of line for subtokens, add +1 to length to account for space
-      subLevelToken = "DATALOG";
-      Serial.print("set timescale");
-      Serial.println(scopeCommand.substring(subLevelToken.length()+1).toInt());
     }
      if(scopeCommand.startsWith("TARE"))
     {
