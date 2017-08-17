@@ -8,7 +8,7 @@ It is compatible with NodeMCU hardware
 
 My primary use for this software is as a filament force display for 3D printers see: [Filament Force sensor](https://www.thingiverse.com/thing:2429390)
 
-![Alt text](/Pictures/30Hz%20sine%20wav.pnge "Revised Graticule")
+![Alt text](/Pictures/30Hz%20sine%20wave.png "Revised Graticule")
 Note that the ADCcannot be read whilst the ESP is updating the websocket to update the scope display , so my code deliberately displays a blank line where the ADC data is missing. 
 This example shows a HX711 interface for strain gauges so that weight/force measurements can be made, and with sopme force applied to the sensor:
 ![Alt text](/Pictures/HX711%20channel%20showing%20signal%20gaps.png)
