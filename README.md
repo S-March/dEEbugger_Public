@@ -10,5 +10,5 @@ My primary use for this software is as a filament force display for 3D printers 
 
 ![Alt text](/Pictures/Revised_Grat.jpg?raw=true "Revised Graticule")
 and adds ability to use HX711 interface for strain gauges so that weight/force measurements can be made:
-![Alt text](https://github.com/dagnall53/dEEbugger_PUBLIC/blob/master/Pictures/Screen_kg.png)
+![Alt text](/Pictures/HX711%20channel%20showing%20signal%20gaps.png)
 
