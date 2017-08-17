@@ -11,13 +11,15 @@
 #define D_Input D3  //DAG  
 
 void scopeInit(void);
+
 void scopeHandler(WebSocketsServer &WEBSOCKETOBJECT);
+
 void ADCInit(void);
 void setADCChannel(int CHANNEL);
 int ADCRead(void);
-void ADCHandler(void);
+void ADCHandler(byte chan);
 void ScalesInit(byte Data,byte Clock);
 boolean ScalesConnected(void);
 void SetScalesConnected(boolean set);
-String readScales(void);
+long readScales(byte Chan);
 

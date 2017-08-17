@@ -1,6 +1,6 @@
-   #include <Arduino.h>
+#include <Arduino.h>
 /// NodeMCU numbering //this update: 08 July 2017
-/*  / these are defined in arduino 
+/*  / these are defined in arduino
   static const uint8_t D0   = 16;  and Red Led on NodeMcu V2 (not present on NodeMCU v3)
   static const uint8_t D1   = 5;
   static const uint8_t D2   = 4;
@@ -13,8 +13,11 @@
   static const uint8_t D9   = 3;
   static const uint8_t D10  = 1;
   #define BlueLed 2 // NB  same as PIN D4!
-*/
+ 
+ // This update 13:11 17 August 2017
 
+*/
+//#define ShowTimes;
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
@@ -30,7 +33,7 @@
 #include <Wire.h>
 //#include "miniDB.h" // called from scope commands and websocket interprete
 #include "websiteHTML.h"
-#include "WebsocketInterpreter.h" 
+#include "WebsocketInterpreter.h"
 
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length);
@@ -47,11 +50,13 @@ String webSocketData = "";
 
 unsigned long oldTime = 0;
 unsigned long oldTimeADC = 0;
-unsigned long currentTime = 0; 
+unsigned long currentTime = 0;
+unsigned long LastSampleTime=0;
 
 //DAG added
 String SettingsData;
 boolean PHASE;
+boolean ADC1READ;
 // DAG end
 
 const char *ssid = "dEEbugger";
@@ -65,18 +70,18 @@ ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 #define APMODE_BOOT_PIN D3  //DAG  press this pin to ground to start in AP mode.. 
 
-void BROADCAST(String MSG); 
+void BROADCAST(String MSG);
 
 void setup()
 
-{   
+{
   Serial.begin(115200);
-  pinMode(D_Input ,INPUT_PULLUP);
+  pinMode(D_Input , INPUT_PULLUP);
   pinMode(D4, OUTPUT);
-  digitalWrite(D4,0); //DAG Turn on the blue LED 
+  digitalWrite(D4, 0); //DAG Turn on the blue LED
   delay(1000);
 
-  if(!digitalRead(APMODE_BOOT_PIN))
+  if (!digitalRead(APMODE_BOOT_PIN))
   {
     WiFi.disconnect();
     WiFi.softAP(ssid, password);
@@ -91,33 +96,39 @@ void setup()
     Serial.println("Booting in client mode");
     Serial.println("OTA is available");
     WiFiManager wifiManager;
-    wifiManager.autoConnect(ssid,password);
+    wifiManager.autoConnect(ssid, password);
     Serial.println();
-    Serial.print("IP address: ");  
+    Serial.print("IP address: ");
     if (!MDNS.begin("dEEbugger"))
     {
       Serial.println("Error setting up MDNS responder!");
-      while(1)
-      { 
+      while (1)
+      {
         delay(1000);
       }
     }
     Serial.println("mDNS responder started");
-  
+
     Serial.print("Connect to http://dEEbugger.local or http://");
     Serial.println(WiFi.localIP());
-    
+
     MDNS.addService("http", "tcp", 80);
-    MDNS.addService("ws", "tcp", 81); 
+    MDNS.addService("ws", "tcp", 81);
   }
-  digitalWrite(D4,1); //DAG led OFF?
+  digitalWrite(D4, 1); //DAG led OFF?
   ArduinoOTA.setHostname("dEEbugger");
   ArduinoOTA.onStart([]()
-  {Serial.println("Start");});
+  {
+    Serial.println("Start");
+  });
   ArduinoOTA.onEnd([]()
-  {Serial.println("\nEnd");});
+  {
+    Serial.println("\nEnd");
+  });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
-  {Serial.printf("Progress: %u%%\r", (progress / (total / 100)));});
+  {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
   ArduinoOTA.onError([](ota_error_t error)
   {
     Serial.printf("Error[%u]: ", error);
@@ -133,81 +144,94 @@ void setup()
   server.begin();
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  Wire.begin(); 
+  Wire.begin();
   scopeInit();
-  setMsTimer(500);  // initial 2Hz lazyflash timer for scope sampling rate timebase 
+  setMsTimer(500);  // initial  lazy flash timer for scope sampling rate timebase gets reset when pc connects html
   SetScalesConnected(0);
   currentTime = millis();
-  SettingsData="";
-   Serial.println("testing for Connected I2C devices");
-    //  scanI2CAddress(webSocket);
-     Serial.println(SinglescanI2CAddress(webSocket,60));
-      Serial.println(SinglescanI2CAddress(webSocket,50));
-      Serial.println("testing for HX 711   ");
-  ScalesInit(D5,D6);    
+  LastSampleTime=currentTime;
+  SettingsData = "";
+  Serial.println("testing for Connected I2C devices");
+  //  scanI2CAddress(webSocket);
+  Serial.println(SinglescanI2CAddress(webSocket, 60));
+  Serial.println(SinglescanI2CAddress(webSocket, 50));
+  Serial.println("testing for HX 711   ");
+  ScalesInit(D5, D6);
+  ADC1READ = 0;
+  Serial.println("Waiting for browser to connect");
+  clearADCScopeData1();
+  clearADCScopeData2();
 }
 
-void BROADCAST(String MSG){
-   webSocket.broadcastTXT(MSG); 
+void BROADCAST(String MSG) {
+  webSocket.broadcastTXT(MSG);
 }
 
 void loop()
-{   
-  //DAG test  Serial.println(hx711.read()/100.0);
-  // test ends
-
+{
+digitalWrite(D4, PHASE); //DAG LED flashing
   currentTime = millis();
   serialEvent();
   ArduinoOTA.handle();
   webSocket.loop();
   server.handleClient();
-  if((currentTime - oldTimeADC)>=5)
-  {
-    ADCHandler();
-    oldTimeADC = currentTime;
-  }
-  if(webSocketData!="")
+  if (webSocketData != "")
   {
     webSocketDataInterpreter(webSocket, webSocketData);
     webSocketData = "";
-  }
-  if((currentTime - oldTime)>=getMsTimer()) //getmstimer is the calibration ?...
-  {
-            digitalWrite(D4,PHASE); //DAG LED flashing 
-            PHASE=!PHASE;
+    ADCHandler(0);   // do both channels not neat but doing this after a message allows for chs being turned off and updating the web server
     scopeHandler(webSocket);
-    webSocketData = "";
-    oldTime = currentTime;
   }
+ if ((getMsTimer()>=300)&&(!ADC1READ)&&( ((currentTime - LastSampleTime) >=(getMsTimer()/2)))){
+  ADCHandler(1); // Do channels alternately if both ch on and mst timer is long??
+  ADC1READ=true;
+ }
+
+  if ((currentTime - LastSampleTime) >=getMsTimer()) //get adc values
+  { if (!ADC1READ){ ADCHandler(1); }
+    ADCHandler(2);   // Do channels alternately if both ch on and mst timer is long??
+    ADC1READ=false;
+    LastSampleTime=currentTime ;
+    digitalWrite(D4,PHASE); //DAG LED flashing 
+    PHASE=!PHASE;
+    }
+    
+   if((currentTime - oldTime)>=2000) //update the scope at 2 sec intervals?
+  {          
+            scopeHandler(webSocket);
+            webSocketData = "";
+            oldTime = currentTime;
+  }
+  
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length)
 {
-  switch(type)
-    {
+  switch (type)
+  {
     case WStype_DISCONNECTED:
-        Serial.printf("[%u] Disconnected!\r\n", num);
-        break;
+      Serial.printf("[%u] Disconnected!\r\n", num);
+      break;
     case WStype_CONNECTED:
-        {
+      {
         IPAddress ip = webSocket.remoteIP(num);
         Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\r\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-        }
-        break;
+      }
+      break;
     case WStype_TEXT:
-         webSocketData = String((const char *)payload);
-        break;
+      webSocketData = String((const char *)payload);
+      break;
     case WStype_BIN:
-        Serial.printf("[%u] get binary length: %u\r\n", num, length);
-        hexdump(payload, length);
+      Serial.printf("[%u] get binary length: %u\r\n", num, length);
+      hexdump(payload, length);
 
-        // echo data back to browser
-        webSocket.sendBIN(num, payload, length);
-        break;
+      // echo data back to browser
+      webSocket.sendBIN(num, payload, length);
+      break;
     default:
-        Serial.printf("Invalid WStype [%d]\r\n", type);
-        break;
-    }
+      Serial.printf("Invalid WStype [%d]\r\n", type);
+      break;
+  }
 }
 
 void handleRoot()
@@ -221,11 +245,11 @@ void handleNotFound()
   message += "URI: ";
   message += server.uri();
   message += "\nMethod: ";
-  message += (server.method() == HTTP_GET)?"GET":"POST";
+  message += (server.method() == HTTP_GET) ? "GET" : "POST";
   message += "\nArguments: ";
   message += server.args();
   message += "\n";
-  for (uint8_t i=0; i<server.args(); i++){
+  for (uint8_t i = 0; i < server.args(); i++) {
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
   server.send(404, "text/plain", message);
@@ -244,15 +268,15 @@ void serialEvent()
     }
   }
   if (stringComplete) {
-    if(getUartScopeFlag())
+    if (getUartScopeFlag())
     {
       uartIntData = inputString.toInt();
-      if(uartIntData)
+      if (uartIntData)
       {
         setUartScopeData(inputString);
         Serial.println(inputString);
       }
-      else if(inputString == "0")
+      else if (inputString == "0")
       {
         setUartScopeData(inputString);
         Serial.println(inputString);
@@ -264,7 +288,7 @@ void serialEvent()
         Serial.println(line);
       }
     }
-    else{
+    else {
       String line = "SERIAL UART " + inputString;
       webSocket.broadcastTXT(line);
       Serial.println(line);

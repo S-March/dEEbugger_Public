@@ -27,22 +27,24 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var dataChannelOnFlag1 = true;
     var dataChannelOnFlag2 = false;
     var dataLogFlag = false;
-    var dataTAREFlag= false;
+    var dataOSDFlag= false;
     var terminalConnectFlag = true;
     //Plot Variables
-    var plotCanvasWidth = 0;
-    var plotCanvasHeight = 0;
+    var plotCanvasWidth = 1024;
+    var plotCanvasHeight = 800; // just defaults...
     var xPlotCurrentPosition = 0.5;
+    var xPlotCurrentPosition2 = 0.5;
     var yPlotCurrentPosition = 0;
     var yPlotCurrentPosition2 = 0;
     var xPlotOldPosition = 0;
-    var xPlotOldPositionLine2 = 0;
+    var xPlotOldPosition2 = 0;
     var yPlotOldPosition = 0;
-    var yPlotOldPositionLine2 = 0;
+    var yPlotOldPosition2 = 0;
      var yPlotScaleFactor = 10;   // DAG nb setting a different start point
      var xPlotScaleFactor = 1;
-     var xPlotSamplesPerSecond = 25; // DAG is actually 1000/msTimer
-     var xPlotPositionStep = 10;  //DAG is used as delta t in plot in scope calculated later from xplot samples per secons etc.... 
+     var xPlotmSTimer = 2000;  // more correctly single channel sample interval timer 
+     var currentmst=10;
+     var xPlotPositionStep = 10;  //DAG is used as delta t in plot in scope calculated later from xPlotmSTimer etc.... 
     var xPlotTotalTimeMax = 10;
     var xPlotTotalTime = 10; 
     var yPlotMax = 64;           // DAG Scope displ;ay is basically set up for 2048 INPUT = 64 v
@@ -63,7 +65,12 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
     var peakDetectPeakYValue = 0;
     var peakDetectDataWindowPosYValue = 0;
     var peakDetectDataWindowNegYValue = 0;
-
+    var data2send="";
+    var FirstAfterCLS=0;
+    var PlotEdgeReached =false;
+    var MissingSteps=0;
+    var PlotStraightLine=false;
+    
     function start()
     {
       //websock = new WebSocket('ws://192.168.4.1:81/');
@@ -71,9 +78,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       websock.onopen = function(evt)
       {
         console.log('websock open');
-        websock.send("SCOPE CHANNEL 1 INT ADC");
-        websock.send("SCOPE CHANNEL 2 OFF");
-        websock.send("SCOPE TIMESCALE 40");
+        websock.send("SCOPE CHANNEL 1 INT ADC"); 
+       xPlotmSTimer=100000;   // set "wrong" so UpdateMST will send "correct" value
+      //websock.send("SCOPE CHANNEL 1 SCALES");
+        websock.send("SCOPE CHANNEL 2 OFF"); 
+        UpdateMST(xPlotmSTimer); // will update mstimer
+        //websock.send("SCOPE MSTIMER 500");  // note there is somethng wrong with the mstimer  change routines..either in the web interpreter or the html or 
+       // websock.send("SCOPE SPS 1");  // dag note max rate for two scales to be read alternately
       };
       websock.onclose = function(evt)
       {
@@ -99,28 +110,45 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           }
         }
       };
+         clearPlot();
     }
 
     function scopeEventHandler()
     {
-        if(wsMessageArray[1] === "ADC")
+       if(wsMessageArray[1] === "ADC")
       {
         if(wsMessageArray[2] === "DATACHANNEL1")
         {
             dataChannelOnFlag1 = true;
-      if(wsMessageArray.length>3)
-      {
-        for(var updatePlotCounter = 3; updatePlotCounter <= (wsMessageArray.length-1); updatePlotCounter++)
-        {
-          updatePlot(parseInt(wsMessageArray[updatePlotCounter]));
+      if(wsMessageArray.length > 3)
+      { 
+        if(PlotEdgeReached)   {  
+          clearPlot();    
+          PlotStraightLine=true   ;// should trigger drawstraightline in update plot's first stroke only  
         }
+        else{
+            
+             // we add blank plot space to account for missing adc samples during the websocket data send
+       
+            MissingSteps=(200/xPlotmSTimer)*xPlotPositionStep; // 200ms is the websocket update dropout in the esp code
+            xPlotOldPosition += MissingSteps; 
+            xPlotOldPosition2 +=MissingSteps;
+            xPlotCurrentPosition +=MissingSteps;
+            xPlotCurrentPosition2 +=MissingSteps; 
+            PlotStraightLine=true   ;// should trigger drawstraightline in update plot's first stroke only 
+           }   
+       for(var updatePlotCounter = 3; updatePlotCounter <= (wsMessageArray.length-1); updatePlotCounter++)
+           { 
+             updatePlot(parseInt(wsMessageArray[updatePlotCounter]));
+           }
       }
         }
         if(wsMessageArray[2] === "DATACHANNEL2")
         {
             dataChannelOnFlag2 = true;
-      if(wsMessageArray.length>3)
+      if(wsMessageArray.length > 3)
       {
+        if(PlotEdgeReached)   {  clearPlot();   }// try to only clear plot when new data is ready and waiting ?
         for(var updatePlotCounter = 3; updatePlotCounter <= (wsMessageArray.length-1); updatePlotCounter++)
         {
           updatePlot(parseInt(wsMessageArray[updatePlotCounter]));
@@ -182,7 +210,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       }
       if(wsMessageArray[1] === "SETTINGS")
             {
- //       websock.send("In scope settings.."); //DAG
+       //websock.send("In scope settings.."); //DAG
         if(wsMessageArray[2] === "YSCALE")
         {
           yPlotScaleFactor = parseInt(wsMessageArray[3]);
@@ -200,7 +228,16 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         }
         if(wsMessageArray[2] === "SPS")
         {     
-          xPlotSamplesPerSecond = parseInt(wsMessageArray[3]); 
+          xPlotmSTimer = 1000/parseInt(wsMessageArray[3]); 
+          clearPlot();
+        }
+        if(wsMessageArray[2] === "MSTIMER")
+        {     
+          xPlotmSTimer = parseInt(wsMessageArray[3]); 
+        data2send="";
+        data2send = "Updated mst to:   ";
+        data2send += xPlotmSTimer;
+        websock.send(data2send);
           clearPlot();
         }
       }
@@ -256,13 +293,35 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           clearPlot();
         } 
         if(wsMessageArray[2] === "SPS")
-        {
-          xPlotSamplesPerSecond = parseInt(wsMessageArray[3]); 
+        {     
+          xPlotmSTimer = 1000/parseInt(wsMessageArray[3]); 
+          clearPlot();
+        }
+        if(wsMessageArray[2] === "MSTIMER")
+        {     
+          xPlotmSTimer = parseInt(wsMessageArray[3]); 
           clearPlot();
         }
       }
     }
-
+function UpdateMST(currentmst)
+{
+    xPlotmSTimer=3   
+     if ((document.getElementById("channelSelectElement1").value==="SCALES")||(document.getElementById("channelSelectElement2").value==="SCALES"))
+     {
+      xPlotmSTimer =100
+    if ( (document.getElementById("channelSelectElement2").value==="SCALESB")&& (document.getElementById("channelSelectElement1").value==="SCALES") )
+    {
+      xPlotmSTimer = 1500;}
+    }
+ if (currentmst!=xPlotmSTimer)
+   {
+        data2send="";
+        data2send = "SCOPE MSTIMER ";
+        data2send += xPlotmSTimer;
+        websock.send(data2send);
+   }
+}
     function adjustCanvas()
     {
       var currentClientWidth = (document.documentElement.clientWidth);
@@ -274,22 +333,25 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       plotCanvasWidth = plotElementID.width;
       plotCanvasHeight = plotElementID.height;
       yPlotCurrentPosition = plotCanvasHeight;
-      yPlotOldPositionLine2 = plotCanvasHeight;
+      yPlotOldPosition2 = plotCanvasHeight;
       clearPlot();
     }
 
     function clearPlot()
-    {
+    {        
+      UpdateMST(xPlotmSTimer);
       var plotElementID = document.getElementById("plotElement");
       var pctx = plotElementID.getContext("2d"); 
-      xPlotPositionStep = plotCanvasWidth / (xPlotTotalTimeMax * xPlotSamplesPerSecond * xPlotScaleFactor); //DAG modified and using sps   
+      xPlotPositionStep = (((plotCanvasWidth * xPlotmSTimer)/ (xPlotTotalTimeMax * xPlotScaleFactor))/1000); //DAG modified and using mstimer   
+      //xPlotPositionStep = plotCanvasWidth / (xPlotTotalTimeMax * xPlotSamplesPerSecond * xPlotScaleFactor); //original
       pctx.fillStyle = "white";
       pctx.clearRect(0, 0, plotCanvasWidth, plotCanvasHeight);
       pctx.beginPath();
       pctx.fillRect(0, 0, plotCanvasWidth, plotCanvasHeight);
-      xPlotOldPosition = 0;
-      xPlotOldPositionLine2 = 0;
-      xPlotCurrentPosition = 0.5;
+      xPlotOldPosition = 0; 
+      xPlotOldPosition2 =0;
+      xPlotCurrentPosition = 0;
+      xPlotCurrentPosition2 = 0;
       pctx.lineJoin = "round";
       pctx.lineCap = "round";
       pctx.font = (plotCanvasHeight / 25) + "px Helvetica";
@@ -314,7 +376,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
             pctx.fillText((xDivisions * xPlotTotalTimeMax * xPlotScaleFactor / Xgrid).toFixed(0) + "s", ((plotCanvasWidth * xDivisions / Xgrid)) - pctx.measureText(
           (xDivisions * xPlotTotalTimeMax  * xPlotScaleFactor/ Xgrid).toFixed(0) + "s").width / 2, (plotCanvasHeight - 10));
         }
-        
+    
       }
 
       
@@ -329,7 +391,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         pctx.closePath();
         pctx.stroke();
         //DAG revised this function and removed "V" as it can be kG or Volts.. pctx.fillText(( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor).toFixed(1) + " ", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));}
-       if(document.getElementById("channelSelectElement1").value==="SCALES"){
+       if((document.getElementById("channelSelectElement1").value==="SCALES")||(document.getElementById("channelSelectElement2").value==="SCALES")||(document.getElementById("channelSelectElement2").value==="SCALESB")){
         pctx.fillText((( yDivisions / VScale * (yPlotMax) / yPlotScaleFactor)-1).toFixed(1) +" Kg", 5, (plotCanvasHeight-(yDivisions* plotCanvasHeight / VScale) - 5));
        }                            //                                        ^ DAG note -1 gives a scale offset to match the  "64"  (equivalent of 1Kg) offset in the scales in scope commands
        else {
@@ -337,6 +399,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
        }                                                      
        }
             peakDetectFirstReadFlag = false;
+            FirstAfterCLS=0;  
+            PlotEdgeReached=false;
     }
 
     function updatePlot(incomingYPlotPosition)
@@ -346,38 +410,34 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         var plotElementID = document.getElementById("plotElement");
         var pctx = plotElementID.getContext("2d");
         incomingYPlotPosition = ((incomingYPlotPosition / 4096) * yPlotMax);  //DAG NOTE 4096
-        if(xPlotCurrentPosition > (plotCanvasWidth - 1))
-        {
-          clearPlot();
-        }
-        xPlotOldPosition = xPlotCurrentPosition;
-        xPlotCurrentPosition += xPlotPositionStep;
-        if(wsMessageArray[2] === "DATACHANNEL1")
-        {
-            //if(document.getElementById("channelSelectElement1").value==="4V ADC")
-            //{
-            // incomingYPlotPosition = incomingYPlotPosition/16;  //DAG CHANGE TO YSCALE  makes this section redundant?
-            //}
-            channelIncomingYPlotPosition1 = incomingYPlotPosition;
-        }
-        else if(wsMessageArray[2] === "DATACHANNEL2")
-        {
-           // if(document.getElementById("channelSelectElement2").value==="4V ADC")
-           //{
-           // incomingYPlotPosition = incomingYPlotPosition/16;  //DAG CHANGE TO YSCALE  makes this redundant?
-           //}
-            channelIncomingYPlotPosition2 = incomingYPlotPosition;
-        }
+        if(xPlotCurrentPosition > (plotCanvasWidth - 1)||(xPlotCurrentPosition2 > (plotCanvasWidth - 1)))
+                   {
+                      PlotEdgeReached=true;
+                   }             
         pctx.lineWidth = plotCanvasHeight / 50;
-        if(dataChannelOnFlag1)
-        {
+        if(dataChannelOnFlag1 && (wsMessageArray[2] === "DATACHANNEL1"))
+        { 
+          if (FirstAfterCLS === 0){
+        //    websock.send("CH1 rx first");
+          FirstAfterCLS=1;
+          xPlotOldPosition2=(xPlotOldPosition2+ (xPlotPositionStep/2));          //offset other channel by half mstimer timestep
+          xPlotCurrentPosition2=(xPlotCurrentPosition2+ (xPlotPositionStep/2)); //offset other channel by half mstimer timestep
+          }
+          channelIncomingYPlotPosition1 = incomingYPlotPosition;
+          
+          xPlotOldPosition = xPlotCurrentPosition;
+          xPlotCurrentPosition += xPlotPositionStep;
           yPlotOldPosition = yPlotCurrentPosition;
           yPlotCurrentPosition = channelIncomingYPlotPosition1 * yPlotScaleFactor;
           yPlotCurrentPosition = yPlotCurrentPosition * (plotCanvasHeight / yPlotMax);
           yPlotCurrentPosition = plotCanvasHeight - yPlotCurrentPosition;
+      if (!PlotEdgeReached){
           pctx.strokeStyle = "#E87D75";
           pctx.beginPath();
           pctx.moveTo(xPlotOldPosition, yPlotOldPosition);
+          if (PlotStraightLine)
+           {pctx.moveTo(xPlotOldPosition, yPlotCurrentPosition);
+           PlotStraightLine=false;}  // only do it first time
           pctx.lineTo(xPlotCurrentPosition, yPlotCurrentPosition);
           pctx.closePath();
           pctx.stroke();
@@ -388,16 +448,34 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
             peakDetectFinder(peakDetectInputValue);
           }
         }
-        if(dataChannelOnFlag2)
-        {
+          if(dataOSDFlag)
+          {
+             if(document.getElementById("channelSelectElement1").value==="SCALES")
+                  { OSDdisplay( (incomingYPlotPosition-1).toFixed(2) +" kG",0);} 
+             else {  OSDdisplay( (incomingYPlotPosition).toFixed(2) +" V",0);}
+           }
+        }
+     if(dataChannelOnFlag2 && (wsMessageArray[2] === "DATACHANNEL2"))
+        { 
+          if (FirstAfterCLS === 0){
+          //  websock.send("CH2 first");
+            FirstAfterCLS=2;
+          xPlotOldPosition=(xPlotOldPosition+ (xPlotPositionStep/2))
+          xPlotCurrentPosition=(xPlotCurrentPosition+ (xPlotPositionStep/2)); //offset other channel by half timestep
+          }
+          
+          channelIncomingYPlotPosition2 = incomingYPlotPosition;
+          
+          xPlotOldPosition2 = xPlotCurrentPosition2;
+          xPlotCurrentPosition2 += xPlotPositionStep
           yPlotOldPosition2 = yPlotCurrentPosition2;
           yPlotCurrentPosition2 = channelIncomingYPlotPosition2 * yPlotScaleFactor;
           yPlotCurrentPosition2 = yPlotCurrentPosition2 * (plotCanvasHeight / yPlotMax);
           yPlotCurrentPosition2 = plotCanvasHeight - yPlotCurrentPosition2;
           pctx.strokeStyle = "#7CCFF8";
           pctx.beginPath();
-          pctx.moveTo(xPlotOldPosition, yPlotOldPositionLine2);
-          pctx.lineTo(xPlotCurrentPosition, yPlotCurrentPosition2);
+          pctx.moveTo(xPlotOldPosition2, yPlotOldPosition2);
+          pctx.lineTo(xPlotCurrentPosition2, yPlotCurrentPosition2);
           pctx.closePath();
           pctx.stroke();
           if(peakDetectionFlag)
@@ -406,9 +484,13 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
             peakDetectInputValue = plotCanvasHeight - yPlotCurrentPosition2;
             peakDetectFinder(peakDetectInputValue);
           }
-          yPlotOldPositionLine2 = yPlotCurrentPosition2;
-          xPlotOldPositionLine2 = xPlotCurrentPosition;
-        }
+          if(dataOSDFlag)
+          {
+             if((document.getElementById("channelSelectElement2").value==="SCALES")||(document.getElementById("channelSelectElement2").value==="SCALESB"))
+                  { OSDdisplay( (incomingYPlotPosition-1).toFixed(2) +" kG",1);} 
+             else {  OSDdisplay( (incomingYPlotPosition).toFixed(2) +" V",1);}
+           }
+        } // end ch 2
       }
     }
 
@@ -491,6 +573,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       channelSelect1 = "SCOPE CHANNEL 1 ";
       channelSelect1 += document.getElementById("channelSelectElement1").value;
       websock.send(channelSelect1);
+      clearPlot(); // added
     }
 
     function changeChannelSelect2()
@@ -498,11 +581,16 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       channelSelect2 = "SCOPE CHANNEL 2 ";
       channelSelect2 += document.getElementById("channelSelectElement2").value;
       websock.send(channelSelect2);
+      clearPlot();  // added
     }
 
     function changeTimeScale()
-    {
+    { 
       xPlotTotalTimeMax = document.getElementById("timescaleSelectElement").value;
+     // timeScaleSelect = "SCOPE TIMESCALE ";
+     //timeScaleSelect+=  document.getElementById("timescaleSelectElement").value;
+     //  faulty attempt to send time data to the ESP 
+     //websock.send(timeScaleSelect);
       clearPlot();
     }
 
@@ -665,24 +753,40 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
         websock.send("SCOPE DATALOG ON");
       }
     }
-     function toggleTARE()
+     function toggleOSD()
     {
-      if(dataTAREFlag)
+      if(dataOSDFlag)
       {
-        dataTAREFlag = false;
-        document.getElementById("toggleTAREButton").innerHTML = "<b> TARE: Off</b>"
-        document.getElementById("toggleTAREButton").style.backgroundColor = "#E87D75";
-        websock.send("SCOPE TARE OFF");
+        dataOSDFlag = false;
+        document.getElementById("toggleOSDButton").innerHTML = "<b> OSD: Off</b>"
+        document.getElementById("toggleOSDButton").style.backgroundColor = "#E87D75";
+        websock.send("SCOPE OSD OFF");
       }
       else
       {
-        dataTAREFlag = true;
-        document.getElementById("toggleTAREButton").innerHTML = "<b> TARE: On</b>"
-        document.getElementById("toggleTAREButton").style.backgroundColor = "#4E4E56";
-        websock.send("SCOPE TARE ON");
+        dataOSDFlag = true;
+        document.getElementById("toggleOSDButton").innerHTML = "<b> OSD: On</b>"
+        document.getElementById("toggleOSDButton").style.backgroundColor = "#4E4E56";
+        websock.send("SCOPE OSD ON");
       }
     }
-
+    function OSDdisplay(incomingData,Chan)
+    { var plotElementID = document.getElementById("plotElement");   // dag to do change spacing to relate to canvas width
+      var pctx = plotElementID.getContext("2d");
+      var TextHeight = (plotCanvasHeight / 10);
+      pctx.fillStyle = "white";
+      pctx.clearRect((30+(Chan*plotCanvasWidth/5)), 10, 150, TextHeight);
+      pctx.beginPath();
+      pctx.fillRect((30+(Chan*plotCanvasWidth/5)),  10, 150, TextHeight);
+      pctx.font = TextHeight + "px Helvetica";
+      pctx.fillStyle = "black";
+      //websock.send("OSD write");
+      //pctx.font = "24px Helvitica";
+      //pctx.fillText( "TEST", 30,30);
+       pctx.fillText( incomingData, (30+(Chan*plotCanvasWidth/5)), (TextHeight+10) ,(plotCanvasWidth/5));
+  
+    }
+    
     function toggleTerminalEcho()
     {
       if(terminalEchoFlag)
@@ -850,7 +954,7 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       </button> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Channel 1</span> <select id="channelSelectElement1" onchange="changeChannelSelect1();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
            <option value="OFF">Off</option>
-           <option value="SCALES">HX711 Scales</option> 
+           <option value="SCALES">HX711 Scales Ch_A</option> 
            <option value="INT ADC"selected="selected">Internal ADC</option> 
            <option value="DIG">Digital Input</option>
            <option value="4V ADC" >4V ADC</option>
@@ -859,7 +963,9 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           <option value="UART">UART</option>
         </select> </div>
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh;"> <span style="width: 100%; height:2.5vh;">Channel 2</span> <select id="channelSelectElement2" onchange="changeChannelSelect2();" style="display:block; -webkit-appearance: none; box-sizing: content-box; width: 70%; height:10vh; background-color: #E87D75; color:white; border:0; border-radius: 5px; text-align:center; text-align-last:center; margin-left:15%;">
-          <option value="OFF" selected="selected">Off</option>
+          <option value="OFF"selected="selected">Off</option>
+          <option value="SCALES">HX711 Scales Ch_A</option> 
+          <option value="SCALESB">HX711 Scales Ch_B</option> 
           <option value="INT ADC">Internal ADC</option>
           <option value="DIG">Digital Input</option>
           <option value="4V ADC">4V ADC</option>
@@ -896,8 +1002,8 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
       <div style="width: 100%; height:12.5vh; margin-top:2.5vh; margin-bottom:2.5vh;"> <span style="width: 100%; height:2.5vh;">Log Data</span> <button id="toggleDataLogButton" style="display:block; -webkit-appearance: none; width: 70%; height: 10vh; background-color: #E87D75; color:white; text-decoration: none; border: 0; padding: 0; border-radius: 5px; font-family:Helvetica; margin-left:15%;" onclick="toggleDataLog()">
         <b>Log Data: Off</b>
       </button> </div>
-       <div style="width: 100%; height:12.5vh; margin-top:2.5vh; margin-bottom:2.5vh;"> <span style="width: 100%; height:2.5vh;">Tare</span> <button id="toggleTAREButton" style="display:block; -webkit-appearance: none; width: 70%; height: 10vh; background-color: #E87D75; color:white; text-decoration: none; border: 0; padding: 0; border-radius: 5px; font-family:Helvetica; margin-left:15%;" onclick="toggleTARE()">
-        <b>Tare: Off</b>
+       <div style="width: 100%; height:12.5vh; margin-top:2.5vh; margin-bottom:2.5vh;"> <span style="width: 100%; height:2.5vh;">OSD</span> <button id="toggleOSDButton" style="display:block; -webkit-appearance: none; width: 70%; height: 10vh; background-color: #E87D75; color:white; text-decoration: none; border: 0; padding: 0; border-radius: 5px; font-family:Helvetica; margin-left:15%;" onclick="toggleOSD()">
+        <b>OSD: Off</b>
       </button> </div>
     </div><!--NOTE: This comment is to prevent white space between inline blocking elements.
   ---><div id="terminalSettingsElement" style="display:none; width:100%; height:77.5vh; overflow-y:auto; text-align:center; ">

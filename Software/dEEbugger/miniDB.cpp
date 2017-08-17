@@ -21,11 +21,11 @@ void setMsTimer(int TIME)
   Serial.print(msTimer);
   Serial.println("ms");
 
-   MSGdata = "SCOPE SETTINGS SPS ";  // 
-   MSGdata += String ( (1000/getMsTimer()),DEC);    //Samples per second are 1000/ mstimer.
-    BROADCAST(MSGdata);
-    Serial.print("...updated msTimer , sending:");
-    Serial.println(MSGdata);
+ //  MSGdata = "SCOPE MSTIMER ";  // if the html decided what the mtimer, i, I think we do not need to send it a copy back 
+ //  MSGdata += String ( getMsTimer(),DEC);    //Samples per second are 1000/ mstimer.
+ //   BROADCAST(MSGdata);
+ //   Serial.print("...updated msTimer , sending:");
+ //   Serial.println(MSGdata);
 }
 int getMsTimer(void)
 {
